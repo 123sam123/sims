@@ -36,6 +36,8 @@ importers:
 
   packages/engine: {}
 
+  packages/runner: {}
+
 packages:
 
   '@anthropic-ai/sdk@0.116.0':

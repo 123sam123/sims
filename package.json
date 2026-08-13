@@ -12,7 +12,7 @@
     "web": "pnpm --filter web dev",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome lint packages",
-    "test": "node --import tsx --test \"packages/engine/test/*.test.ts\""
+    "test": "node --import tsx --test \"packages/*/test/*.test.ts\""
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.8",
