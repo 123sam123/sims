@@ -8,7 +8,10 @@ out/
 .DS_Store
 /worlds/
 
-# Fredrin worktree tooling — the CLI wrapper carries a scoped API token.
+# Fredrin worktree tooling. Only the machine-local, credential-bearing parts are
+# ignored — NOT the whole .fredrin/ directory: FREDRIN.md is meant to be
+# committed, and .fredrin/memory/ is this project's Memory bundle, which
+# `fredrin ticket context` can only read once it is git-tracked.
 .fredrin/fredrin
 .fredrin/fredrin.cmd
 .fredrin/context-pack.mjs

@@ -81,7 +81,8 @@ function growthRate(seed: number, years: number, over: Partial<PopContext> = {})
   const s = settlement();
   burnIn(s, seed);
   const before = settlementPop(s);
-  for (let y = 0; y < years; y++) stepPopulation(s, ctx({ year: 300 + y, seed, ...over }));
+  for (let y = 0; y < years; y++)
+    stepPopulation(s, ctx({ year: 300 + y, seed, ...over }));
   const after = settlementPop(s);
   if (after <= 0) throw new Error(`settlement died out at seed ${seed}`);
   return (after / before) ** (1 / years) - 1;
@@ -145,7 +146,10 @@ test("food surplus is what lets a farming settlement outgrow a foraging one", ()
     mortalityNoise: 0,
     epidemicChance: 0,
   });
-  assert.ok(surplus > subsistence * 3, `surplus ${surplus} should far exceed ${subsistence}`);
+  assert.ok(
+    surplus > subsistence * 3,
+    `surplus ${surplus} should far exceed ${subsistence}`,
+  );
   assert.ok(surplus < 0.02, "even abundant food should not give modern growth rates");
 });
 
@@ -182,7 +186,10 @@ test("the stable age structure is a pre-industrial pyramid", () => {
 
   // Every band should be smaller than the one below it: nobody gets younger.
   for (let b = 1; b < AGE_BANDS; b++) {
-    assert.ok(s.cohorts[b] < s.cohorts[b - 1], `band ${b} is not smaller than band ${b - 1}`);
+    assert.ok(
+      s.cohorts[b] < s.cohorts[b - 1],
+      `band ${b} is not smaller than band ${b - 1}`,
+    );
   }
 });
 
@@ -190,7 +197,10 @@ test("the absorbing 75+ band reaches a steady state instead of piling up", () =>
   const s = settlement();
   burnIn(s, 4, 1500, { mortalityNoise: 0, epidemicChance: 0 });
   const share = s.cohorts[AGE_BANDS - 1] / settlementPop(s);
-  assert.ok(share > 0.002 && share < 0.03, `75+ share ${share.toFixed(4)} is implausible`);
+  assert.ok(
+    share > 0.002 && share < 0.03,
+    `75+ share ${share.toFixed(4)} is implausible`,
+  );
 });
 
 /* ------------------------------------------------------------------ *
@@ -211,7 +221,10 @@ test("infants die at more than 5x the rate of adults in their late twenties", ()
   };
   const infant = only(0);
   const prime = only(5);
-  assert.ok(infant > prime * 5, `infant ${infant.toFixed(4)} vs prime ${prime.toFixed(4)}`);
+  assert.ok(
+    infant > prime * 5,
+    `infant ${infant.toFixed(4)} vs prime ${prime.toFixed(4)}`,
+  );
   // and the constants they come from agree
   assert.ok(BASE_MORTALITY[0] > BASE_MORTALITY[5] * 5);
 });
@@ -267,7 +280,10 @@ test("sanitation and medicine lower the death rate, and only where they should",
     crudeDeathRate(["sanitation"], 12000, 2600) < cityNone * 0.9,
     "sanitation in a city",
   );
-  assert.ok(crudeDeathRate(["medicine"], 12000, 2600) < cityNone * 0.95, "medicine in a city");
+  assert.ok(
+    crudeDeathRate(["medicine"], 12000, 2600) < cityNone * 0.95,
+    "medicine in a city",
+  );
   assert.ok(
     crudeDeathRate(["sanitation", "medicine"], 12000, 2600) < cityNone * 0.8,
     "both together",
@@ -277,7 +293,10 @@ test("sanitation and medicine lower the death rate, and only where they should",
   // register — that is the point of reading capabilities instead of an era.
   const campNone = crudeDeathRate([], 120, 200);
   const campSanitation = crudeDeathRate(["sanitation"], 120, 200);
-  assert.ok(campSanitation > campNone * 0.97, "sanitation should hardly matter in a hamlet");
+  assert.ok(
+    campSanitation > campNone * 0.97,
+    "sanitation should hardly matter in a hamlet",
+  );
 });
 
 /* ------------------------------------------------------------------ *
@@ -311,7 +330,10 @@ test("a decade of famine shrinks a settlement and leaves it older", () => {
   burnIn(fed, 5);
   const fedAge = meanBand(fed);
   for (let y = 0; y < 10; y++) stepPopulation(fed, ctx({ year: 300 + y, seed: 5 }));
-  assert.ok(settlementPop(fed) > popBefore * 0.95, "a fed settlement should hold its numbers");
+  assert.ok(
+    settlementPop(fed) > popBefore * 0.95,
+    "a fed settlement should hold its numbers",
+  );
   assert.ok(Math.abs(meanBand(fed) - fedAge) < 0.15, "a fed settlement should not age");
 });
 
@@ -563,7 +585,10 @@ test("crowding raises the death rate and sanitation takes most of it back", () =
   const roomy = deathRate(700, []);
   const packed = deathRate(100, []);
   assert.ok(packed > roomy * 1.2, "crowding should hurt");
-  assert.ok(deathRate(100, ["sanitation"]) < packed * 0.85, "sanitation should help most here");
+  assert.ok(
+    deathRate(100, ["sanitation"]) < packed * 0.85,
+    "sanitation should help most here",
+  );
 });
 
 /* ------------------------------------------------------------------ *

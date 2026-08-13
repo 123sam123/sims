@@ -253,7 +253,10 @@ export function foodDemand(s: Settlement): number {
 }
 
 /** Shelter capacity, in people. More housing is always better than less. */
-export function shelterCapacity(s: Settlement, freeCapacity = DEFAULT_FREE_CAPACITY): number {
+export function shelterCapacity(
+  s: Settlement,
+  freeCapacity = DEFAULT_FREE_CAPACITY,
+): number {
   return freeCapacity + s.housing * PEOPLE_PER_DWELLING;
 }
 
@@ -391,7 +394,11 @@ export function stepPopulation(s: Settlement, ctx: PopContext): PopStep {
     starvationDeaths,
     foodDemand: demand,
     crowding,
-    migrationPressure: clamp(MIGRATION_CROWDING * crowding + MIGRATION_HUNGER * hunger, 0, 1),
+    migrationPressure: clamp(
+      MIGRATION_CROWDING * crowding + MIGRATION_HUNGER * hunger,
+      0,
+      1,
+    ),
     plague,
   };
 }
