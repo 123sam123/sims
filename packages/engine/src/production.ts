@@ -11,6 +11,7 @@
  * weather multiplier drawn from `hashSeed("prod", civId, year)`, so a seed
  * always replays to the same harvests — and the same famines.
  */
+import { emit } from "./events.ts";
 import type { ResourceKind } from "./geo-data.ts";
 import { CAPABILITY_BY_ID } from "./knowledge.ts";
 import { Rng, hashSeed } from "./rng.ts";
@@ -18,7 +19,6 @@ import {
   BIOMES,
   type Biome,
   type Civ,
-  type EventKind,
   type Grid,
   type StoreKey,
   type World,
@@ -213,7 +213,14 @@ function produceCiv(world: World, civ: Civ, cells: number[]): ProductionResult {
   const consumed = population * FOOD_PER_CAPITA;
 
   // --- Food first ---
-  const { produced: food, workersUsed } = produceFood(grid, cells, held, labour, consumed, weather);
+  const { produced: food, workersUsed } = produceFood(
+    grid,
+    cells,
+    held,
+    labour,
+    consumed,
+    weather,
+  );
   civ.stores.food = Math.max(0, civ.stores.food + food - consumed);
   const surplus = Math.max(0, labour - workersUsed);
 
@@ -230,17 +237,34 @@ function produceCiv(world: World, civ: Civ, cells: number[]): ProductionResult {
   // --- Report what happened ---
   const famine = population > 0 && food < consumed * FAMINE_THRESHOLD;
   if (famine) {
-    pushEvent(
-      world,
-      "famine",
-      civ.id,
-      cells.length > 0 ? cells[0] : null,
-      clamp(0.1, 1, (consumed - food) / Math.max(1, consumed)),
-      `${civ.name} could not bring in enough food.`,
-    );
+    const shortfall = clamp(0, 1, (consumed - food) / Math.max(1, consumed));
+    const place = cells.length > 0 ? cells[0] : null;
+    // Two events, one cause: the harvest failed (the mechanism), and its people
+    // went hungry (the consequence). Linking them lets the chronicle trace a
+    // famine back to the failed fields behind it, rather than reporting only the
+    // hunger and losing the why.
+    const harvest = emit(world, {
+      kind: "disaster",
+      civ: civ.id,
+      cell: place,
+      magnitude: shortfall,
+      text: `The harvest failed across ${civ.name}: its fields yielded far short of the people's need.`,
+    });
+    emit(world, {
+      kind: "famine",
+      civ: civ.id,
+      cell: place,
+      magnitude: shortfall,
+      causedBy: [harvest.id],
+    });
   }
   for (const name of discovered) {
-    pushEvent(world, "discovery", civ.id, null, 0.3, `${civ.name} discovered ${name}.`);
+    emit(world, {
+      kind: "discovery",
+      civ: civ.id,
+      magnitude: 0.15,
+      fields: { civ: civ.name, subject: name },
+    });
   }
 
   return {
@@ -325,7 +349,12 @@ function grazingFloor(biomeIndex: number): number {
  * Wood — a stock that gets cut down
  * ------------------------------------------------------------------ */
 
-function harvestWood(grid: Grid, cells: number[], held: Set<string>, woodWorkers: number): number {
+function harvestWood(
+  grid: Grid,
+  cells: number[],
+  held: Set<string>,
+  woodWorkers: number,
+): number {
   if (woodWorkers <= 0) return 0;
   const axe = held.has("hafting") ? 1 : WOOD_NO_AXE_PENALTY;
   const forested = cells
@@ -352,7 +381,12 @@ function harvestWood(grid: Grid, cells: number[], held: Set<string>, woodWorkers
  * Stone — abundant, labour-limited, richer in the hills
  * ------------------------------------------------------------------ */
 
-function quarryStone(grid: Grid, cells: number[], held: Set<string>, stoneWorkers: number): number {
+function quarryStone(
+  grid: Grid,
+  cells: number[],
+  held: Set<string>,
+  stoneWorkers: number,
+): number {
   if (stoneWorkers <= 0) return 0;
   const tool = (held.has("masonry") ? 1.5 : 1) * (held.has("hafting") ? 1.2 : 1);
   const byYield = [...cells].sort((a, b) => stoneYield(grid, b) - stoneYield(grid, a));
@@ -438,15 +472,4 @@ function collectTerritory(grid: Grid): Map<number, number[]> {
     arr.push(i);
   }
   return territory;
-}
-
-function pushEvent(
-  world: World,
-  kind: EventKind,
-  civ: number | null,
-  cell: number | null,
-  weight: number,
-  text: string,
-): void {
-  world.events.push({ id: world.nextEventId++, year: world.year, kind, civ, cell, weight, text });
 }
