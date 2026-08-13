@@ -31,6 +31,7 @@
  * objects with stable ids; they are never recreated tick to tick.
  */
 
+import { emit } from "./events.ts";
 import { foodDemand, PEOPLE_PER_DWELLING, stepPopulation } from "./pop.ts";
 import { hashSeed, Rng } from "./rng.ts";
 import {
@@ -445,13 +446,17 @@ function assignCatchments(
   }
   // Clear stale assignments so an abandoned site's cells do not linger.
   grid.settlement.fill(-1);
-  const farmingOf = (civ: number) => heldByCiv.get(civ)?.has("plant_domestication") ?? false;
+  const farmingOf = (civ: number) =>
+    heldByCiv.get(civ)?.has("plant_domestication") ?? false;
 
   const queue: number[] = [];
   for (const s of all) {
     if (grid.settlement[s.cell] !== -1) continue; // two settlements, one cell: keep the first
     grid.settlement[s.cell] = s.id;
-    capacity.set(s.id, (capacity.get(s.id) ?? 0) + cellFoodCapacity(grid, s.cell, farmingOf(s.civ)));
+    capacity.set(
+      s.id,
+      (capacity.get(s.id) ?? 0) + cellFoodCapacity(grid, s.cell, farmingOf(s.civ)),
+    );
     queue.push(s.cell);
   }
   for (let head = 0; head < queue.length; head++) {
@@ -460,7 +465,8 @@ function assignCatchments(
     if (!s) continue;
     const farming = farmingOf(s.civ);
     for (const n of neighbors(c)) {
-      if (grid.land[n] === 0 || grid.owner[n] !== s.civ || grid.settlement[n] !== -1) continue;
+      if (grid.land[n] === 0 || grid.owner[n] !== s.civ || grid.settlement[n] !== -1)
+        continue;
       grid.settlement[n] = s.id;
       capacity.set(s.id, (capacity.get(s.id) ?? 0) + cellFoodCapacity(grid, n, farming));
       queue.push(n);
@@ -532,7 +538,7 @@ function bestSite(
     const y = py + dy;
     if (y < 0 || y >= GRID_H) continue;
     for (let dx = -radiusCells; dx <= radiusCells; dx++) {
-      const x = ((px + dx) % GRID_W + GRID_W) % GRID_W;
+      const x = (((px + dx) % GRID_W) + GRID_W) % GRID_W;
       const c = y * GRID_W + x;
       if (grid.land[c] === 0) continue;
       const biome = grid.biome[c];
@@ -711,11 +717,7 @@ function relocateCamp(grid: Grid, s: Settlement, civId: number): boolean {
  * neighbouring settlement next year). The settlement itself is removed by the
  * caller.
  */
-function abandon(
-  world: World,
-  s: Settlement,
-  byCiv: Map<number, Settlement[]>,
-): void {
+function abandon(world: World, s: Settlement, byCiv: Map<number, Settlement[]>): void {
   const grid = world.grid;
   const pop = settlementPop(s);
   if (pop > 0) {
@@ -769,13 +771,7 @@ function pushEvent(
   weight: number,
   text: string,
 ): void {
-  world.events.push({
-    id: world.nextEventId++,
-    year: world.year,
-    kind: "settlement",
-    civ,
-    cell,
-    weight,
-    text,
-  });
+  // Route through the one event writer so weight, causal links and the log stay
+  // in a single place; settlement events carry no antecedent.
+  emit(world, { kind: "settlement", civ, cell, weight, text });
 }
