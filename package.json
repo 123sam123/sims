@@ -10,9 +10,12 @@
     "status": "tsx packages/runner/src/cli.ts status",
     "history": "tsx packages/runner/src/cli.ts history",
     "web": "pnpm --filter web dev",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test \"packages/engine/test/*.test.ts\"",
+    "lint": "biome lint packages"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.8",
     "@types/node": "^22.10.2",
     "@types/topojson-client": "^3.1.5",
     "tsx": "^4.19.2",

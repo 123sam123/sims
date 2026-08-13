@@ -7,3 +7,9 @@ out/
 .env.local
 .DS_Store
 /worlds/
+
+# Fredrin worktree tooling — the CLI wrapper carries a scoped API token.
+.fredrin/fredrin
+.fredrin/fredrin.cmd
+.fredrin/context-pack.mjs
+.fredrin/hooks/
