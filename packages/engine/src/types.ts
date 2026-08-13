@@ -239,6 +239,13 @@ export interface WorldEvent {
   /** Magnitude 0..1 — drives what the news feed leads with. */
   weight: number;
   text: string;
+  /**
+   * Ids of the events that produced this one — the world's causal memory.
+   * A famine points at the harvest failure behind it; a war at the grievance
+   * that lit it. Empty when the event has no recorded antecedent. Append-only:
+   * set once at emission, never mutated.
+   */
+  causedBy: number[];
 }
 
 export interface World {
@@ -291,7 +298,7 @@ export function neighbors(i: number): number[] {
       if (dx === 0 && dy === 0) continue;
       const ny = y + dy;
       if (ny < 0 || ny >= GRID_H) continue;
-      const nx = ((x + dx) % GRID_W + GRID_W) % GRID_W; // wrap east–west
+      const nx = (((x + dx) % GRID_W) + GRID_W) % GRID_W; // wrap east–west
       out.push(cellIndex(nx, ny));
     }
   }
@@ -309,7 +316,11 @@ export function refreshCohorts(s: Settlement): void {
   for (let b = 0; b < AGE_BANDS; b++) {
     const base = b * 5;
     s.cohorts[b] =
-      s.ages[base] + s.ages[base + 1] + s.ages[base + 2] + s.ages[base + 3] + s.ages[base + 4];
+      s.ages[base] +
+      s.ages[base + 1] +
+      s.ages[base + 2] +
+      s.ages[base + 3] +
+      s.ages[base + 4];
   }
 }
 

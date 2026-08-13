@@ -44,6 +44,8 @@ interface EventRow {
   cell: number | null;
   weight: number;
   text: string;
+  /** JSON-encoded number[] of causal-parent event ids. */
+  causedBy: string | null;
 }
 
 export class Store {
@@ -70,13 +72,14 @@ export class Store {
         world TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS events (
-        id     INTEGER PRIMARY KEY,
-        year   INTEGER NOT NULL,
-        kind   TEXT NOT NULL,
-        civ    INTEGER,
-        cell   INTEGER,
-        weight REAL NOT NULL,
-        text   TEXT NOT NULL
+        id       INTEGER PRIMARY KEY,
+        year     INTEGER NOT NULL,
+        kind     TEXT NOT NULL,
+        civ      INTEGER,
+        cell     INTEGER,
+        weight   REAL NOT NULL,
+        text     TEXT NOT NULL,
+        causedBy TEXT NOT NULL DEFAULT '[]'
       );
       CREATE INDEX IF NOT EXISTS events_year ON events (year);
     `);
@@ -143,12 +146,21 @@ export class Store {
   appendEvents(events: readonly WorldEvent[]): void {
     if (events.length === 0) return;
     const stmt = this.db.prepare(
-      "INSERT INTO events (id, year, kind, civ, cell, weight, text) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
+      "INSERT INTO events (id, year, kind, civ, cell, weight, text, causedBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
     );
     this.db.exec("BEGIN");
     try {
       for (const e of events) {
-        stmt.run(e.id, e.year, e.kind, e.civ, e.cell, e.weight, e.text);
+        stmt.run(
+          e.id,
+          e.year,
+          e.kind,
+          e.civ,
+          e.cell,
+          e.weight,
+          e.text,
+          JSON.stringify(e.causedBy),
+        );
       }
       this.db.exec("COMMIT");
     } catch (err) {
@@ -161,7 +173,7 @@ export class Store {
   recentEvents(limit: number): WorldEvent[] {
     const rows = this.db
       .prepare(
-        "SELECT id, year, kind, civ, cell, weight, text FROM events ORDER BY year DESC, id DESC LIMIT ?",
+        "SELECT id, year, kind, civ, cell, weight, text, causedBy FROM events ORDER BY year DESC, id DESC LIMIT ?",
       )
       .all(limit) as unknown as EventRow[];
     return rows.map((r) => ({
@@ -172,12 +184,15 @@ export class Store {
       cell: r.cell,
       weight: r.weight,
       text: r.text,
+      causedBy: r.causedBy ? (JSON.parse(r.causedBy) as number[]) : [],
     }));
   }
 
   /** Total events on record. */
   eventCount(): number {
-    const row = this.db.prepare("SELECT COUNT(*) AS n FROM events").get() as { n: number };
+    const row = this.db.prepare("SELECT COUNT(*) AS n FROM events").get() as {
+      n: number;
+    };
     return Number(row.n);
   }
 
