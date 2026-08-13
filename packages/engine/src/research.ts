@@ -28,6 +28,7 @@ import {
   blockedBecause,
   researchable,
 } from "./knowledge.ts";
+import { emit } from "./events.ts";
 import { prospectingLevel } from "./production.ts";
 import { Rng, hashSeed } from "./rng.ts";
 import {
@@ -178,7 +179,8 @@ export function stepResearch(world: World, civ: Civ): ResearchResult {
       while (step && guard++ < CAPABILITIES.length + 1) {
         const cap = CAPABILITY_BY_ID.get(step);
         if (!cap) break;
-        const cost = cap.effort * (civ.forgotten.includes(step) ? REDISCOVERY_DISCOUNT : 1);
+        const cost =
+          cap.effort * (civ.forgotten.includes(step) ? REDISCOVERY_DISCOUNT : 1);
         if (civ.research.progress < cost) break;
         civ.research.progress -= cost;
         gainCapability(world, civ, step, population);
@@ -271,7 +273,8 @@ function researchEffort(civ: Civ, world: World): number {
   if (civ.capabilities.includes("philosophy")) literacy *= PHILOSOPHY_MULT;
 
   const largest = largestSettlement(world, civ.id);
-  const density = DENSITY_FLOOR + (DENSITY_CEIL - DENSITY_FLOOR) * (largest / (largest + DENSITY_HALF));
+  const density =
+    DENSITY_FLOOR + (DENSITY_CEIL - DENSITY_FLOOR) * (largest / (largest + DENSITY_HALF));
 
   return scholars * RESEARCH_PER_SCHOLAR * literacy * density;
 }
@@ -303,7 +306,10 @@ function pickAutoTarget(
   let best = options[0];
   for (const c of options) {
     if (c.effort < best.effort) best = c;
-    else if (c.effort === best.effort && (c.era < best.era || (c.era === best.era && c.id < best.id))) {
+    else if (
+      c.effort === best.effort &&
+      (c.era < best.era || (c.era === best.era && c.id < best.id))
+    ) {
       best = c;
     }
   }
@@ -331,7 +337,9 @@ function nextStepToward(
 
   const unmet = cap.needs.filter((n) => !held.has(n));
   if (unmet.length === 0) {
-    return isResearchableNow(cap, held, hasMaterial, hasTerrain, population) ? goalId : null;
+    return isResearchableNow(cap, held, hasMaterial, hasTerrain, population)
+      ? goalId
+      : null;
   }
 
   const ordered = unmet
@@ -403,7 +411,11 @@ function refreshHolders(civ: Civ, held: Set<string>, population: number): void {
   for (const id of held) {
     const cap = CAPABILITY_BY_ID.get(id);
     if (!cap) continue;
-    const h: CapabilityHolders = civ.holders[id] ?? { people: 0, institutions: [], written: false };
+    const h: CapabilityHolders = civ.holders[id] ?? {
+      people: 0,
+      institutions: [],
+      written: false,
+    };
     h.people = population * capabilitySpread(cap);
     h.institutions = institutionsFor(civ, cap);
     // Once written, records persist even if writing is later lost — never
@@ -423,7 +435,8 @@ function institutionsFor(civ: Civ, cap: Capability): string[] {
   return inst;
 }
 
-const isScholarly = (cap: Capability): boolean => cap.era >= SCHOLARLY_ERA_MIN || cap.needs.includes("writing");
+const isScholarly = (cap: Capability): boolean =>
+  cap.era >= SCHOLARLY_ERA_MIN || cap.needs.includes("writing");
 
 /* ------------------------------------------------------------------ *
  * Knowledge loss
@@ -444,7 +457,9 @@ function applyKnowledgeLoss(world: World, civ: Civ, held: Set<string>): string[]
     changed = false;
     const needed = prerequisitesOfHeld(civ);
     // Most-derived first (highest era) for a clean, deterministic cascade.
-    const order = [...civ.capabilities].sort((a, b) => eraOf(b) - eraOf(a) || (a < b ? -1 : 1));
+    const order = [...civ.capabilities].sort(
+      (a, b) => eraOf(b) - eraOf(a) || (a < b ? -1 : 1),
+    );
     for (const id of order) {
       if (STARTING_CAPABILITIES.includes(id)) continue;
       const h = civ.holders[id];
@@ -557,5 +572,6 @@ function pushEvent(
   weight: number,
   text: string,
 ): void {
-  world.events.push({ id: world.nextEventId++, year: world.year, kind, civ, cell, weight, text });
+  // The one event writer; a discovery or a knowledge loss records no antecedent.
+  emit(world, { kind, civ, cell, weight, text });
 }

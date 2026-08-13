@@ -17,6 +17,7 @@
  * tick — and enqueuing from the runner *between* ticks is what enforces that.
  */
 
+import { emit } from "./events.ts";
 import { workingAgePopulation } from "./production.ts";
 import { foundDirectedColony } from "./settlement.ts";
 import type { Civ, Project, Settlement, StoreKey, World } from "./types.ts";
@@ -129,9 +130,7 @@ function finishProject(
   if (!site) return; // its settlement was abandoned mid-build — the work is lost.
   raiseBuilding(site, p.building);
   completed.push({ settlement: site.id, building: p.building });
-  world.events.push({
-    id: world.nextEventId++,
-    year: world.year,
+  emit(world, {
     kind: "decision",
     civ: civ.id,
     cell: site.cell,

@@ -34,6 +34,7 @@
  * fresh world, `world.year === N`.
  */
 
+import { emit } from "./events.ts";
 import { advanceResearch, type ResearchResult } from "./research.ts";
 import { runProduction, type ProductionResult } from "./production.ts";
 import { executeDirectives, type ProjectResult } from "./projects.ts";
@@ -94,12 +95,12 @@ function emitExtinctions(world: World, year: number): number[] {
     if (civPopulation(world, civ.id) > 0) continue;
     civ.alive = false;
     civ.extinctYear = year;
-    world.events.push({
-      id: world.nextEventId++,
-      year,
+    // `world.year === year` here (the year is only advanced after this stage),
+    // so the single event writer stamps the same year. The heaviest event there
+    // is: a civilisation ending.
+    emit(world, {
       kind: "collapse",
       civ: civ.id,
-      cell: null,
       weight: 1,
       text: `${civ.name} died out.`,
     });

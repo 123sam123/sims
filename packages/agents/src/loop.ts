@@ -16,7 +16,7 @@
  * network blip on a 500-year run — the loop falls back rather than dying.
  */
 
-import type { Civ, EventKind, World } from "@sim/engine";
+import { type Civ, emit, type EventKind, type World } from "@sim/engine";
 import { buildBriefing } from "./briefing.ts";
 import type { Brain } from "./brain.ts";
 import { adjudicate, civEra, type Directive, type DirectiveSet } from "./directives.ts";
@@ -136,13 +136,5 @@ function phrase(d: Directive): string {
 }
 
 function pushEvent(world: World, kind: EventKind, civ: Civ, weight: number, text: string): void {
-  world.events.push({
-    id: world.nextEventId++,
-    year: world.year,
-    kind,
-    civ: civ.id,
-    cell: null,
-    weight,
-    text,
-  });
+  emit(world, { kind, civ: civ.id, weight, text });
 }
