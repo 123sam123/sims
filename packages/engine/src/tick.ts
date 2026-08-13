@@ -16,9 +16,12 @@
  *   4. research       — spend scholarship toward each civ's target; lose unwritten
  *                      knowledge whose carriers have died.
  *   5. event emission — world-level events the subsystems don't own (extinctions).
- *   6. directive intake — the seam where the NEXT tick's agent directives are read.
- *                      No agents or LLM this ticket; the stage is fixed here now
- *                      so an agent can never observe its own action within a tick.
+ *   6. directive execution — draw down the standing projects an agent's accepted
+ *                      directives enqueued in an EARLIER year. The decisions
+ *                      themselves (LLM/heuristic) are made by the runner between
+ *                      ticks and only enqueue work; executing it here, last, is
+ *                      what stops an agent ever observing its own directive land
+ *                      within the tick that issued it.
  *
  * Determinism is the contract. Every stochastic draw comes from a seeded stream
  * keyed by `(subsystem, ids, world.year)`, so the result never depends on the
@@ -33,6 +36,7 @@
 
 import { advanceResearch, type ResearchResult } from "./research.ts";
 import { runProduction, type ProductionResult } from "./production.ts";
+import { executeDirectives, type ProjectResult } from "./projects.ts";
 import { type SettlementReport, stepSettlements } from "./settlement.ts";
 import { civPopulation, type World } from "./types.ts";
 
@@ -44,6 +48,8 @@ export interface TickReport {
   research: ResearchResult[];
   /** Civ ids that died out this year. */
   extinctions: number[];
+  /** Standing projects advanced this year, per civ. */
+  projects: ProjectResult[];
 }
 
 /**
@@ -67,11 +73,12 @@ export function tickWorld(world: World): TickReport {
   // 5. event emission — derived, world-level
   const extinctions = emitExtinctions(world, year);
 
-  // 6. agent directive intake — no-op seam (no agents this ticket)
+  // 6. agent directive execution — advance projects accepted in an earlier year.
+  const projects = executeDirectives(world);
 
   world.year = year + 1;
 
-  return { year, production, settlement, research, extinctions };
+  return { year, production, settlement, research, extinctions, projects };
 }
 
 /**

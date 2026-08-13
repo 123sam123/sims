@@ -17,7 +17,8 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import { civPopulation, generateWorld, type World } from "@sim/engine";
-import { advanceWorld } from "./run.ts";
+import { decideForWorld, makeBrains } from "@sim/agents";
+import { advanceWorld, advanceWorldWithDecisions } from "./run.ts";
 import { SNAPSHOT_INTERVAL, Store } from "./store.ts";
 
 const DEFAULT_DB = "worlds/world.db";
@@ -109,7 +110,15 @@ function cmdNew(flags: Record<string, string | boolean>): void {
   );
 }
 
-function cmdRun(flags: Record<string, string | boolean>): void {
+/** Whether `--agents on` was passed (the flag also accepts a bare `--agents`). */
+function agentsOn(flags: Record<string, string | boolean>): boolean {
+  const v = flags.agents;
+  if (v === true) return true;
+  const s = asString(v);
+  return s === "on" || s === "true" || s === "1";
+}
+
+async function cmdRun(flags: Record<string, string | boolean>): Promise<void> {
   const dbPath = asString(flags.db) ?? DEFAULT_DB;
   if (!existsSync(dbPath)) {
     fail(`no world at ${dbPath} — run \`pnpm new --seed <n>\` first`);
@@ -130,23 +139,44 @@ function cmdRun(flags: Record<string, string | boolean>): void {
     return;
   }
 
+  const withAgents = agentsOn(flags);
+  const progress = (w: World) => {
+    process.stdout.write(
+      `  year ${w.year}  ·  pop ${fmt(totalPopulation(w))}  ·  ${w.settlements.length} settlements\n`,
+    );
+  };
+  let lastLogged = start;
+  const onTick = (w: World) => {
+    if (w.year - lastLogged >= PROGRESS_EVERY || w.year >= target) {
+      lastLogged = w.year;
+      progress(w);
+    }
+  };
+
   process.stdout.write(
     `Advancing ${dbPath} from year ${start} to ${target} ` +
       `(snapshot every ${SNAPSHOT_INTERVAL} years)…\n`,
   );
 
   const t0 = performance.now();
-  let lastLogged = start;
-  const result = advanceWorld(store, world, target, {
-    onTick: (w) => {
-      if (w.year - lastLogged >= PROGRESS_EVERY || w.year >= target) {
-        lastLogged = w.year;
-        process.stdout.write(
-          `  year ${w.year}  ·  pop ${fmt(totalPopulation(w))}  ·  ${w.settlements.length} settlements\n`,
-        );
-      }
-    },
-  });
+  let result: { ticks: number; toYear: number };
+  if (withAgents) {
+    const { brain, fallback, usingLlm } = makeBrains({ model: asString(flags.model) });
+    process.stdout.write(
+      usingLlm
+        ? "Agents: on (Claude driving; heuristic fallback).\n"
+        : "Agents: on (no ANTHROPIC_API_KEY — deterministic heuristic brain).\n",
+    );
+    result = await advanceWorldWithDecisions(
+      store,
+      world,
+      target,
+      (w) => decideForWorld(w, { brain, fallback }),
+      { onTick },
+    );
+  } else {
+    result = advanceWorld(store, world, target, { onTick });
+  }
   const seconds = (performance.now() - t0) / 1000;
   store.close();
 
@@ -213,14 +243,14 @@ function cmdHistory(flags: Record<string, string | boolean>): void {
  * Entry
  * ------------------------------------------------------------------ */
 
-function main(): void {
+async function main(): Promise<void> {
   const { command, flags } = parseArgs(process.argv.slice(2));
   switch (command) {
     case "new":
       cmdNew(flags);
       break;
     case "run":
-      cmdRun(flags);
+      await cmdRun(flags);
       break;
     case "status":
       cmdStatus(flags);
@@ -230,10 +260,13 @@ function main(): void {
       break;
     default:
       process.stderr.write(
-        "usage: <new --seed N | run --years YEAR | status | history --limit N> [--db PATH]\n",
+        "usage: <new --seed N | run --years YEAR [--agents on] | status | history --limit N> [--db PATH]\n",
       );
       process.exit(command === "" || command === "--help" || command === "help" ? 0 : 1);
   }
 }
 
-main();
+main().catch((err) => {
+  process.stderr.write(`error: ${err instanceof Error ? err.message : String(err)}\n`);
+  process.exit(1);
+});

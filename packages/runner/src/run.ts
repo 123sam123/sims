@@ -60,3 +60,41 @@ export function advanceWorld(
   if (finalSnapshot) store.saveSnapshot(world);
   return { fromYear, toYear: world.year, ticks: world.year - fromYear };
 }
+
+/** A decision pass over the world, run between ticks. Mutates the world (and its
+ *  event buffer) in place; enqueues work the next tick executes. */
+export type DecisionHook = (world: World) => Promise<void>;
+
+/**
+ * Like {@link advanceWorld}, but runs an async decision pass after every tick —
+ * this is the agent path. The hook (the civilisation minds) observes the
+ * just-simulated year and enqueues directives that only take effect in later
+ * years; its `decision`/`refusal` events are pushed onto the same buffer and
+ * drained in the very same iteration, so the snapshot-and-log contract is
+ * preserved exactly as in the plain loop. Async because a brain may call a model.
+ */
+export async function advanceWorldWithDecisions(
+  store: Store,
+  world: World,
+  targetYear: number,
+  decide: DecisionHook,
+  opts: AdvanceOptions = {},
+): Promise<AdvanceResult> {
+  const { finalSnapshot = true, onTick } = opts;
+  const fromYear = world.year;
+
+  while (world.year < targetYear) {
+    const report = tickWorld(world);
+    // Decide AFTER the tick, BEFORE the drain: the mind never sees its own
+    // directive land within the tick that issued it, and its events ride out on
+    // this iteration's drain rather than lingering into the next snapshot.
+    await decide(world);
+    store.appendEvents(world.events);
+    world.events.length = 0;
+    if (world.year % SNAPSHOT_INTERVAL === 0) store.saveSnapshot(world);
+    onTick?.(world, report);
+  }
+
+  if (finalSnapshot) store.saveSnapshot(world);
+  return { fromYear, toYear: world.year, ticks: world.year - fromYear };
+}

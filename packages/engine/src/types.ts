@@ -135,6 +135,35 @@ export interface Relation {
   contactYear: number;
 }
 
+/**
+ * A unit of accepted, standing work the engine executes over several years.
+ *
+ * An agent *proposes* a directive; the agent layer adjudicates it against the
+ * six gates and, when a construction or settlement directive survives, turns it
+ * into a `Project` queued on the civ. The tick's directive-execution stage draws
+ * the civ's building labour and materials against it each year until it
+ * completes — which is exactly what makes an accepted order take effect over the
+ * *following* years rather than instantly. Plain JSON, so it rides along in the
+ * civ snapshot with no serialisation change.
+ */
+export interface Project {
+  kind: "construct" | "settle";
+  /** What is being raised — a free-text structure name, or "settlement". */
+  building: string;
+  /** Settlement it is built at (the civ's seat, for a new-colony project). */
+  settlement: number;
+  /** Labour-years of building effort still required. */
+  remaining: number;
+  /** Labour-years the project needed in total — for progress and reporting. */
+  total: number;
+  /** Materials still owed, drawn from `Civ.stores` as they become available. */
+  cost: Partial<Stores>;
+  /** Year the directive that spawned this was accepted. */
+  started: number;
+  /** The civilisation's own words for why — carried into the completion event. */
+  note: string;
+}
+
 export interface Government {
   /** Free text — the civilisation names its own system. */
   form: string;
@@ -197,6 +226,12 @@ export interface Civ {
   chronicle: string[];
   /** Standing orders from the last decision, executed over following years. */
   agenda: string[];
+  /**
+   * Accepted construction/settlement work, executed by the tick's directive
+   * stage over the following years. Optional so pre-agent snapshots still load;
+   * the executor treats a missing queue as empty.
+   */
+  projects?: Project[];
   alive: boolean;
   extinctYear?: number;
 }
