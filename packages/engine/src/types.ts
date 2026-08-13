@@ -116,7 +116,14 @@ export interface Settlement {
   housing: number; // dwellings
   buildings: Record<string, number>;
   unrest: number; // 0..1
+  /** Last local food ratio (carrying capacity / need). 1 = exactly fed. */
   lastHarvest: number;
+  /**
+   * Consecutive years this settlement's local food supply has collapsed.
+   * The settlement layer resets it on any fed year and abandons the site once
+   * it reaches `ABANDON_YEARS`. Optional so older constructors keep working.
+   */
+  leanYears?: number;
 }
 
 export interface Relation {
