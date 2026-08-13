@@ -93,12 +93,25 @@ export type StoreKey = keyof Stores;
 /** 16 five-year bands, 0-4 .. 75-79. Anyone older is folded into the last band. */
 export const AGE_BANDS = 16;
 
+/**
+ * Single years of age, 0..79. The band view above is what the rest of the
+ * simulation reads, but ageing has to happen at one-year resolution: moving a
+ * fixed fraction of a five-year band each tick makes band residence
+ * exponential rather than five years, which lets people reach the fertile
+ * bands years early and inflates growth several-fold. So `ages` is the
+ * authoritative state and `cohorts` is a derived view.
+ */
+export const AGE_SLOTS = AGE_BANDS * 5;
+
 export interface Settlement {
   id: number;
   civ: number;
   cell: number;
   name: string;
   founded: number;
+  /** Authoritative population state: one slot per year of age, 0..79. */
+  ages: Float64Array; // length AGE_SLOTS
+  /** Derived five-year view of `ages`, refreshed by every population step. */
   cohorts: Float64Array; // length AGE_BANDS
   housing: number; // dwellings
   buildings: Record<string, number>;
@@ -254,6 +267,32 @@ export function settlementPop(s: Settlement): number {
   let total = 0;
   for (let i = 0; i < AGE_BANDS; i++) total += s.cohorts[i];
   return total;
+}
+
+/** Recompute the five-year `cohorts` view from the authoritative `ages` slots. */
+export function refreshCohorts(s: Settlement): void {
+  for (let b = 0; b < AGE_BANDS; b++) {
+    const base = b * 5;
+    s.cohorts[b] =
+      s.ages[base] + s.ages[base + 1] + s.ages[base + 2] + s.ages[base + 3] + s.ages[base + 4];
+  }
+}
+
+/**
+ * Build a settlement's age state from a coarse five-year shape, spreading each
+ * band evenly across its five single-year slots and scaling the whole thing to
+ * `total` people. This is how worldgen and tests seed a population.
+ */
+export function seedAges(shape: readonly number[], total: number): Float64Array {
+  const ages = new Float64Array(AGE_SLOTS);
+  let sum = 0;
+  for (let b = 0; b < AGE_BANDS; b++) sum += shape[b] ?? 0;
+  if (sum <= 0) return ages;
+  for (let b = 0; b < AGE_BANDS; b++) {
+    const per = (((shape[b] ?? 0) / sum) * total) / 5;
+    for (let i = 0; i < 5; i++) ages[b * 5 + i] = per;
+  }
+  return ages;
 }
 
 export function civPopulation(world: World, civId: number): number {
