@@ -21,6 +21,8 @@ import {
   cellY,
   latLonToCell,
   neighbors,
+  refreshCohorts,
+  seedAges,
 } from "./types.ts";
 import { STARTING_CAPABILITIES } from "./knowledge.ts";
 
@@ -402,10 +404,9 @@ function seedCivs(world: World, rng: Rng) {
     world.civs.push(civ);
 
     // One camp, ~120 people, weighted young — this is a hard life.
-    const cohorts = new Float64Array(AGE_BANDS);
     const shape = [22, 19, 16, 14, 12, 10, 9, 7, 5, 3, 2, 1, 0.5, 0.2, 0.1, 0];
-    const total = shape.reduce((a, b) => a + b, 0);
-    for (let i = 0; i < AGE_BANDS; i++) cohorts[i] = (shape[i] / total) * 120;
+    const ages = seedAges(shape, 120);
+    const cohorts = new Float64Array(AGE_BANDS);
 
     world.settlements.push({
       id: world.nextSettlementId++,
@@ -413,12 +414,14 @@ function seedCivs(world: World, rng: Rng) {
       cell,
       name: "camp",
       founded: 0,
+      ages,
       cohorts,
       housing: 25,
       buildings: {},
       unrest: 0,
       lastHarvest: 1,
     });
+    refreshCohorts(world.settlements[world.settlements.length - 1]);
     world.grid.owner[cell] = id;
     world.grid.settlement[cell] = world.settlements.length - 1;
 
