@@ -136,6 +136,23 @@ export interface Government {
   established: number;
 }
 
+/**
+ * Who actually carries a held capability — and whether losing them loses it.
+ *
+ * A capability is not owned by a civilisation in the abstract; it is held by
+ * particular people and institutions. If the carriers die and it was never
+ * written down, the knowledge is gone. This is how a dark age happens here
+ * without anyone scripting one.
+ */
+export interface CapabilityHolders {
+  /** Rough number of living people who carry this knowledge. */
+  people: number;
+  /** Institutions that also hold it — an archive, a school, a craft guild. */
+  institutions: string[];
+  /** Recorded in writing? Written knowledge survives its last practitioner. */
+  written: boolean;
+}
+
 export interface Civ {
   id: number;
   key: string;
@@ -146,6 +163,17 @@ export interface Civ {
   doctrine: string;
   capabilities: string[];
   research: { target: string | null; progress: number };
+  /**
+   * Per held capability: who holds it and whether it is written down. Kept in
+   * step with `capabilities` by the research layer; the key set mirrors what the
+   * civ currently knows.
+   */
+  holders: Record<string, CapabilityHolders>;
+  /**
+   * Capabilities this civ once held and lost. Ruins and survivors remain, so
+   * these are cheaper to re-discover than to invent from nothing.
+   */
+  forgotten: string[];
   stores: Stores;
   government: Government;
   policy: {
