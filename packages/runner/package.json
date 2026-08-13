@@ -1,0 +1,7 @@
+{
+  "name": "@sim/runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tick orchestrator, persistent store and CLI for the simulation engine."
+}
