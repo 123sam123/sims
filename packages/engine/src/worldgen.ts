@@ -391,6 +391,10 @@ function seedCivs(world: World, rng: Rng) {
       doctrine: meta.doctrine,
       capabilities: [...STARTING_CAPABILITIES],
       research: { target: null, progress: 0 },
+      // The research layer seeds holders for the starting capabilities on its
+      // first step; a band knows nothing it could lose yet.
+      holders: {},
+      forgotten: [],
       stores: { ...EMPTY_STORES, food: 400, wood: 60, stone: 20 },
       government: { form: "band", legitimacy: 0.7, centralization: 0.1, established: 0 },
       policy: { farming: 0.6, building: 0.1, research: 0.15, military: 0.15 },
