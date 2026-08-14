@@ -486,7 +486,7 @@ interface CliCallOutcome {
 }
 
 const isUsageLimitText = (s: string): boolean =>
-  /usage limit|rate limit|hit the limit|limit reached|too many requests|overloaded|429|529/i.test(
+  /usage limit|session limit|rate limit|hit (the|your).*limit|limit reached|resets \d|· resets|too many requests|overloaded|429|529/i.test(
     s,
   );
 
