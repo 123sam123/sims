@@ -513,11 +513,30 @@ async function callClaudeCli(
     "1",
   ];
   // cwd outside the repo so no project-level Claude settings or hooks apply.
-  const { stdout } = await execFileAsync("claude", args, {
-    timeout: CLI_TIMEOUT_MS,
-    maxBuffer: 16 * 1024 * 1024,
-    cwd: tmpdir(),
-  });
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync("claude", args, {
+      timeout: CLI_TIMEOUT_MS,
+      maxBuffer: 16 * 1024 * 1024,
+      cwd: tmpdir(),
+    }));
+  } catch (err) {
+    // execFile's own message echoes the command (i.e. the whole prompt) and
+    // drops stdout — where the CLI put the actual reason (e.g. a usage-limit
+    // result JSON). Rebuild the error from what the CLI actually said, or the
+    // usage-limit classifier upstream never sees the words it matches on.
+    const e = err as { stdout?: string; stderr?: string; code?: number | string; killed?: boolean };
+    let reason = `${e.stderr ?? ""}\n${e.stdout ?? ""}`.trim().slice(0, 500);
+    try {
+      const parsed = JSON.parse(e.stdout ?? "") as { result?: unknown };
+      if (typeof parsed.result === "string") reason = parsed.result.slice(0, 500);
+    } catch {
+      // keep the raw stderr/stdout tail
+    }
+    throw new Error(
+      `claude CLI exit ${e.code ?? "?"}${e.killed ? " (timeout)" : ""}: ${reason || "no output"}`,
+    );
+  }
   const parsed = JSON.parse(stdout) as {
     is_error?: boolean;
     subtype?: string;
