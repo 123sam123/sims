@@ -1,9 +1,11 @@
 # Divergence findings — does agent choice change history?
 
-**Status: in progress — the LLM arm has not run yet.** Everything in this
-document up to the Results section was written *before* any model-driven run
-existed, so the interpretation rules below are pre-registered: they cannot be
-bent to fit the data after the fact. The verdict section is filled in last.
+**Status: aborted before completion, at the project owner's decision.** The
+gate, control and chaos-floor arms ran to completion; the LLM arm was stopped
+at year 700 of 1,500 (five clean partial runs, preserved and resumable).
+Everything from here to the Results section was written *before* any
+model-driven run existed, so the interpretation rules below are
+pre-registered: they cannot be bent to fit the data after the fact.
 
 ## The question
 
@@ -46,6 +48,16 @@ terminal failures) because the production loop degrades silently: a truncated
 or refused model response becomes "held to its present course", and a thrown
 error becomes a quiet heuristic decision. A run that was materially heuristic
 is reported as contaminated, not passed off as a clean measurement.
+
+**Transport.** The LLM arm ran `claude-opus-5` through the Claude Code CLI on
+subscription auth (`--transport cli`) rather than the metered API — the same
+briefings and the same adjudication path, with three stated differences from
+the production SDK brain: the directive JSON schema travels in the prompt
+instead of being enforced server-side (decoding tolerates fences and recovers
+the outermost JSON object), there is no `refusal` stop-reason channel, and
+each decision is a fresh CLI process. A usage-limit hit makes the run wait and
+retry rather than fall back to the heuristic, so throttling can stall a run
+but cannot contaminate it.
 
 ## Gate and control results (measured before the LLM arm)
 
@@ -109,9 +121,40 @@ comparison bar.
 
 ## Results — LLM arm
 
-_Not yet run. This section and the verdict are filled in from
-`docs/divergence/report.md` once the five model-driven runs complete._
+**The arm was stopped at the project owner's decision at year 700 of 1,500**,
+mid-experiment, after ~1,850 clean model calls (about $104 of notional usage on
+subscription auth). Per the pre-registered rules, no verdict is drawn from
+incomplete runs: the five partial histories are shown in
+`docs/divergence/report.md` marked *incomplete*, excluded from every
+divergence metric, and their run state is preserved on disk
+(`worlds/experiments/seed-1/llm-*.db` + capture sidecars) — re-invoking
+
+    pnpm tsx packages/runner/src/experiment.ts --seed 1 --runs 5 --years 1500 --transport cli
+
+resumes all five from year 700 and completes the experiment with no work lost.
+
+For the record, and explicitly **not** as a verdict: in the observed span the
+model-driven civilisations behaved qualitatively unlike both heuristic arms —
+every run immediately named its peoples, declared distinct free-text
+government forms ("council of masters", "gathering of hearths", "band of
+givers"), recorded laws into the chronicle, steered research past
+cheapest-first order, and sustained populations roughly an order of magnitude
+above the heuristic baseline at the same year, with real spread across runs
+(292k–385k at year 500). These are the strategy-bearing dimensions the
+pre-registered rules look at, but 700 years is not the experiment the rules
+were registered for.
 
 ## Verdict
 
-_Pending the LLM arm._
+**NOT ANSWERED.** The gate question — does agent choice measurably change
+history beyond what noise snowballing produces? — remains open, because the
+measurement arm was aborted before its endpoint. This is a decision of scope,
+not a failure of the harness: determinism and control gates passed, the chaos
+floor is quantified, and the instrumented LLM pipeline ran cleanly to year 700.
+
+What this means for the project, stated plainly per the ticket's own framing:
+the premise of AI Civilization Earth is **unproven either way**. Building
+breadth (war, trade, diplomacy, deployment) on top of an unproven premise
+carries exactly the risk this ticket existed to retire. The cheapest path to
+an answer from here is to resume the preserved runs (~3–4 h, ~$150 more of
+notional subscription usage); everything needed is committed and idempotent.
