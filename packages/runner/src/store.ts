@@ -51,6 +51,38 @@ function sumCohortsB64(b64: string): number {
   return total;
 }
 
+/** One metered model call, as the attention budget recorded it. `day` is the
+ *  UTC calendar day (`YYYY-MM-DD`) the spend lands on — the budget's
+ *  accounting unit, precomputed by the writer so reporting never re-derives
+ *  timezone-dependent bucketing from `ts`. */
+export interface SpendRecord {
+  /** Wall-clock ms since epoch. The only clock use here; never on the tick path. */
+  ts: number;
+  day: string;
+  /** What the call bought: "decision" (a civ mind) or "narration" (batched re-telling). */
+  category: string;
+  civ: number | null;
+  model: string;
+  /** Real dollars on API auth; CLI-reported notional dollars on subscription auth. */
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+}
+
+/** Per-day, per-category aggregate of the spend ledger. */
+export interface SpendAggregate {
+  day: string;
+  category: string;
+  calls: number;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+}
+
 interface EventRow {
   id: number;
   year: number;
@@ -97,6 +129,20 @@ export class Store {
         causedBy TEXT NOT NULL DEFAULT '[]'
       );
       CREATE INDEX IF NOT EXISTS events_year ON events (year);
+      CREATE TABLE IF NOT EXISTS spend (
+        id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts       INTEGER NOT NULL,
+        day      TEXT NOT NULL,
+        category TEXT NOT NULL,
+        civ      INTEGER,
+        model    TEXT NOT NULL,
+        costUsd  REAL NOT NULL,
+        inputTokens         INTEGER NOT NULL,
+        outputTokens        INTEGER NOT NULL,
+        cacheReadTokens     INTEGER NOT NULL,
+        cacheCreationTokens INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS spend_day ON spend (day);
     `);
   }
 
@@ -153,6 +199,75 @@ export class Store {
       | undefined;
     if (!row) return null;
     return deserializeWorld(JSON.parse(row.world) as SerializedWorld);
+  }
+
+  /**
+   * Delete every snapshot older than `latestYear` that is not a keyframe
+   * (a multiple of `keepEvery`). The daemon snapshots every tick so a crash
+   * loses at most one year; without pruning that is a full world blob per year.
+   * Keyframes stay so `settlementCensus` keeps its long history.
+   */
+  pruneSnapshots(latestYear: number, keepEvery: number): void {
+    this.db
+      .prepare("DELETE FROM snapshots WHERE year < ? AND year % ? != 0")
+      .run(latestYear, keepEvery);
+  }
+
+  /**
+   * Delete events at or above an id. The daemon's resume guard: a crash
+   * between the event drain and the snapshot write leaves logged events from a
+   * year the resumed run will re-decide — with a model in the loop the re-run
+   * is not identical, and "same ids, different content" would make the
+   * id-keyed dedupe silently keep the abandoned timeline's text. Pruning from
+   * the loaded snapshot's own `nextEventId` closes that window.
+   */
+  pruneEventsFrom(id: number): void {
+    this.db.prepare("DELETE FROM events WHERE id >= ?").run(id);
+  }
+
+  /* --- spend ledger ------------------------------------------------------ */
+
+  /** Append one metered model call to the spend ledger. */
+  recordSpend(r: SpendRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO spend (ts, day, category, civ, model, costUsd,
+           inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        r.ts,
+        r.day,
+        r.category,
+        r.civ,
+        r.model,
+        r.costUsd,
+        r.inputTokens,
+        r.outputTokens,
+        r.cacheReadTokens,
+        r.cacheCreationTokens,
+      );
+  }
+
+  /** Total dollars recorded on one UTC day — the hard-cap check reads this. */
+  spentOnDay(day: string): number {
+    const row = this.db
+      .prepare("SELECT COALESCE(SUM(costUsd), 0) AS c FROM spend WHERE day = ?")
+      .get(day) as { c: number };
+    return Number(row.c);
+  }
+
+  /** The ledger aggregated by day and category, oldest day first. */
+  spendByDay(): SpendAggregate[] {
+    return this.db
+      .prepare(
+        `SELECT day, category, COUNT(*) AS calls, SUM(costUsd) AS costUsd,
+           SUM(inputTokens) AS inputTokens, SUM(outputTokens) AS outputTokens,
+           SUM(cacheReadTokens) AS cacheReadTokens,
+           SUM(cacheCreationTokens) AS cacheCreationTokens
+         FROM spend GROUP BY day, category ORDER BY day ASC, category ASC`,
+      )
+      .all() as unknown as SpendAggregate[];
   }
 
   /* --- events ----------------------------------------------------------- */
