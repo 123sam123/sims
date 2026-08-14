@@ -629,6 +629,34 @@ function foundColony(
   return colony;
 }
 
+/**
+ * Found a colony on command, budding off the civ's largest settlement toward the
+ * best nearby site. This is the settlement layer's side of an accepted "settle"
+ * directive: the autonomous founding above happens on its own schedule, but a
+ * civilisation that *decides* to expand reaches it through here. Returns the new
+ * settlement (already pushed onto the world and stamped on the grid) or null if
+ * the civ cannot yet settle, has nowhere in reach worth founding, or has no
+ * settlements to bud from. Deterministic — the site search's tie-break rng is
+ * seeded from the civ and the year.
+ */
+export function foundDirectedColony(world: World, civId: number): Settlement | null {
+  const civ = world.civs.find((c) => c.id === civId);
+  if (!civ?.alive) return null;
+  if (!civ.capabilities.includes("settlement")) return null;
+  const sites = world.settlements.filter((s) => s.civ === civId);
+  if (sites.length === 0) return null;
+
+  const capital = largestSettlement(sites);
+  const rng = new Rng(hashSeed("found-directed", civId, world.year));
+  const cell = bestSite(world, civId, capital, capital, rng);
+  if (cell < 0) return null;
+
+  const colony = foundColony(world, civ, capital, cell);
+  world.settlements.push(colony);
+  pushEvent(world, civId, cell, 0.5, "A new settlement was founded by decree.");
+  return colony;
+}
+
 /* ------------------------------------------------------------------ *
  * Migration between existing settlements
  * ------------------------------------------------------------------ */

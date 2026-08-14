@@ -59,6 +59,8 @@ importers:
         specifier: ^19.1.9
         version: 19.2.4(@types/react@19.2.18)
 
+  packages/agents: {}
+
   packages/engine: {}
 
   packages/runner: {}
