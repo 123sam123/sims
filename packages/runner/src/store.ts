@@ -36,6 +36,21 @@ import {
  *  wall-clock progress (never any determinism — the years are re-derived). */
 export const SNAPSHOT_INTERVAL = 50;
 
+/**
+ * Sum a settlement's population from the base64 of its 16-band `cohorts`
+ * Float64Array — the same encoding `serializeWorld` writes. Bytes are copied
+ * into a fresh aligned buffer so the 8-byte Float64 read is always valid.
+ */
+function sumCohortsB64(b64: string): number {
+  const bin = Buffer.from(b64, "base64");
+  const bytes = new Uint8Array(bin.length);
+  bytes.set(bin);
+  const arr = new Float64Array(bytes.buffer, 0, bytes.byteLength / 8);
+  let total = 0;
+  for (let i = 0; i < arr.length; i++) total += arr[i];
+  return total;
+}
+
 interface EventRow {
   id: number;
   year: number;
@@ -169,14 +184,8 @@ export class Store {
     }
   }
 
-  /** The most recent events, newest first. */
-  recentEvents(limit: number): WorldEvent[] {
-    const rows = this.db
-      .prepare(
-        "SELECT id, year, kind, civ, cell, weight, text, causedBy FROM events ORDER BY year DESC, id DESC LIMIT ?",
-      )
-      .all(limit) as unknown as EventRow[];
-    return rows.map((r) => ({
+  private static toEvent(r: EventRow): WorldEvent {
+    return {
       id: r.id,
       year: r.year,
       kind: r.kind as EventKind,
@@ -185,7 +194,138 @@ export class Store {
       weight: r.weight,
       text: r.text,
       causedBy: r.causedBy ? (JSON.parse(r.causedBy) as number[]) : [],
-    }));
+    };
+  }
+
+  /** The most recent events, newest first. */
+  recentEvents(limit: number): WorldEvent[] {
+    const rows = this.db
+      .prepare(
+        "SELECT id, year, kind, civ, cell, weight, text, causedBy FROM events ORDER BY id DESC LIMIT ?",
+      )
+      .all(limit) as unknown as EventRow[];
+    return rows.map(Store.toEvent);
+  }
+
+  /**
+   * A page of the feed, newest first, using the monotonic event id as the
+   * cursor. `beforeId` returns events strictly older than that id (scroll back);
+   * `afterId` returns events strictly newer, still newest-first (poll for new).
+   * The two are mutually exclusive; pass at most one.
+   */
+  feedPage(
+    limit: number,
+    opts: { beforeId?: number; afterId?: number } = {},
+  ): WorldEvent[] {
+    let sql =
+      "SELECT id, year, kind, civ, cell, weight, text, causedBy FROM events";
+    const params: number[] = [];
+    if (opts.beforeId !== undefined) {
+      sql += " WHERE id < ?";
+      params.push(opts.beforeId);
+    } else if (opts.afterId !== undefined) {
+      sql += " WHERE id > ?";
+      params.push(opts.afterId);
+    }
+    sql += " ORDER BY id DESC LIMIT ?";
+    params.push(limit);
+    const rows = this.db.prepare(sql).all(...params) as unknown as EventRow[];
+    return rows.map(Store.toEvent);
+  }
+
+  /**
+   * The most recent events at or above a weight — what the front page leads
+   * with. Newest first; the caller re-sorts by weight for a headline band.
+   */
+  topEvents(minWeight: number, limit: number): WorldEvent[] {
+    const rows = this.db
+      .prepare(
+        "SELECT id, year, kind, civ, cell, weight, text, causedBy FROM events WHERE weight >= ? ORDER BY id DESC LIMIT ?",
+      )
+      .all(minWeight, limit) as unknown as EventRow[];
+    return rows.map(Store.toEvent);
+  }
+
+  /** Events involving one civilisation, newest first. */
+  eventsByCiv(civId: number, limit: number): WorldEvent[] {
+    const rows = this.db
+      .prepare(
+        "SELECT id, year, kind, civ, cell, weight, text, causedBy FROM events WHERE civ = ? ORDER BY id DESC LIMIT ?",
+      )
+      .all(civId, limit) as unknown as EventRow[];
+    return rows.map(Store.toEvent);
+  }
+
+  /** Events that happened at one cell, newest first. */
+  eventsByCell(cell: number, limit: number): WorldEvent[] {
+    const rows = this.db
+      .prepare(
+        "SELECT id, year, kind, civ, cell, weight, text, causedBy FROM events WHERE cell = ? ORDER BY id DESC LIMIT ?",
+      )
+      .all(cell, limit) as unknown as EventRow[];
+    return rows.map(Store.toEvent);
+  }
+
+  /** One event by id, or null. */
+  eventById(id: number): WorldEvent | null {
+    const row = this.db
+      .prepare(
+        "SELECT id, year, kind, civ, cell, weight, text, causedBy FROM events WHERE id = ?",
+      )
+      .get(id) as EventRow | undefined;
+    return row ? Store.toEvent(row) : null;
+  }
+
+  /** A set of events by id (for causal-parent fetches). Order is unspecified. */
+  eventsByIds(ids: readonly number[]): WorldEvent[] {
+    if (ids.length === 0) return [];
+    const placeholders = ids.map(() => "?").join(",");
+    const rows = this.db
+      .prepare(
+        `SELECT id, year, kind, civ, cell, weight, text, causedBy FROM events WHERE id IN (${placeholders})`,
+      )
+      .all(...ids) as unknown as EventRow[];
+    return rows.map(Store.toEvent);
+  }
+
+  /**
+   * The chronicle: every event at or above a weight, oldest first (chronological
+   * order = ascending id), capped. This is the durable "what mattered" spine.
+   */
+  chronicle(minWeight: number, limit: number): WorldEvent[] {
+    const rows = this.db
+      .prepare(
+        "SELECT id, year, kind, civ, cell, weight, text, causedBy FROM events WHERE weight >= ? ORDER BY id ASC LIMIT ?",
+      )
+      .all(minWeight, limit) as unknown as EventRow[];
+    return rows.map(Store.toEvent);
+  }
+
+  /**
+   * A settlement's population across every snapshot on record, oldest first.
+   * Reads only the settlements slice of each snapshot and decodes the one
+   * settlement's 16-band cohort array — never the full grid — so charting a
+   * settlement's history is cheap even with many snapshots.
+   */
+  settlementCensus(settlementId: number): { year: number; pop: number }[] {
+    const rows = this.db
+      .prepare("SELECT year, world FROM snapshots ORDER BY year ASC")
+      .all() as unknown as { year: number; world: string }[];
+    const out: { year: number; pop: number }[] = [];
+    for (const row of rows) {
+      let parsed: {
+        settlements?: { id: number; cohorts: string }[];
+      };
+      try {
+        parsed = JSON.parse(row.world);
+      } catch {
+        continue;
+      }
+      const s = parsed.settlements?.find((x) => x.id === settlementId);
+      if (!s) continue;
+      out.push({ year: row.year, pop: sumCohortsB64(s.cohorts) });
+    }
+    return out;
   }
 
   /** Total events on record. */
