@@ -26,7 +26,11 @@ import {
   type Capability,
   type Civ,
   civPopulation,
+  offerTreaty,
+  orderEspionage,
   type Project,
+  breakTreaty,
+  relayMessage,
   researchGates,
   type StoreKey,
   type World,
@@ -75,12 +79,41 @@ export interface ProclaimDirective {
   rationale?: string;
 }
 
+export interface EnvoyDirective {
+  type: "envoy";
+  /** Civ id the message is for — must be a people this civ has met. */
+  towards: number;
+  /** The message itself. Relayed through the engine, bounded, never a
+   *  side-channel: only civs with contact can hear each other. */
+  message: string;
+  rationale?: string;
+}
+export interface PactDirective {
+  type: "pact";
+  towards: number;
+  /** Offer a treaty, or tear up the one that stands. */
+  action: "offer" | "break";
+  rationale?: string;
+}
+export interface SpyDirective {
+  type: "spy";
+  towards: number;
+  /** Steal a capability, or assess the target (sharpen beliefs about it). */
+  mission: "steal" | "assess";
+  /** For `steal`: the capability hoped for (optional). */
+  capability?: string;
+  rationale?: string;
+}
+
 export type Directive =
   | ResearchDirective
   | ConstructDirective
   | SettleDirective
   | PolicyDirective
-  | ProclaimDirective;
+  | ProclaimDirective
+  | EnvoyDirective
+  | PactDirective
+  | SpyDirective;
 
 export interface DirectiveSet {
   directives: Directive[];
@@ -120,7 +153,7 @@ export const DIRECTIVE_OUTPUT_SCHEMA = {
         properties: {
           type: {
             type: "string",
-            enum: ["research", "construct", "settle", "policy", "proclaim"],
+            enum: ["research", "construct", "settle", "policy", "proclaim", "envoy", "pact", "spy"],
           },
           target: { type: "string", description: "research: a capability to pursue" },
           building: { type: "string", description: "construct: what to build" },
@@ -132,6 +165,11 @@ export const DIRECTIVE_OUTPUT_SCHEMA = {
           name: { type: "string", description: "proclaim: a name for your people" },
           governmentForm: { type: "string", description: "proclaim: a form of government" },
           record: { type: "string", description: "proclaim: a line for the chronicle" },
+          towards: { type: "number", description: "envoy/pact/spy: the civ id it concerns" },
+          message: { type: "string", description: "envoy: words carried to that people" },
+          action: { type: "string", enum: ["offer", "break"], description: "pact: offer a treaty, or break the standing one" },
+          mission: { type: "string", enum: ["steal", "assess"], description: "spy: steal a capability, or assess their strength" },
+          capability: { type: "string", description: "spy steal: the capability hoped for (optional)" },
           rationale: { type: "string", description: "one short sentence of why" },
         },
       },
@@ -152,6 +190,11 @@ interface RawDirective {
   name?: unknown;
   governmentForm?: unknown;
   record?: unknown;
+  towards?: unknown;
+  message?: unknown;
+  action?: unknown;
+  mission?: unknown;
+  capability?: unknown;
   rationale?: unknown;
 }
 
@@ -195,6 +238,27 @@ function toDirective(raw: RawDirective): Directive | null {
         rationale,
       };
       return d.name || d.governmentForm || d.record ? d : null;
+    }
+    case "envoy": {
+      const towards = num(raw.towards);
+      const message = str(raw.message);
+      return towards !== undefined && message
+        ? { type: "envoy", towards, message, rationale }
+        : null;
+    }
+    case "pact": {
+      const towards = num(raw.towards);
+      const action = str(raw.action);
+      return towards !== undefined && (action === "offer" || action === "break")
+        ? { type: "pact", towards, action, rationale }
+        : null;
+    }
+    case "spy": {
+      const towards = num(raw.towards);
+      const mission = str(raw.mission);
+      return towards !== undefined && (mission === "steal" || mission === "assess")
+        ? { type: "spy", towards, mission, capability: str(raw.capability), rationale }
+        : null;
     }
     default:
       return null;
@@ -308,6 +372,11 @@ const CAPITAL_FLOOR = 0.1;
 const MONUMENT_CENTRALIZATION = 0.25;
 /** Legitimacy a proclamation demands (authority gate). */
 const PROCLAIM_LEGITIMACY = 0.25;
+/** Centralization an espionage operation demands — spies need a hand that can
+ *  direct them and keep the secret (authority gate). */
+const SPY_CENTRALIZATION = 0.2;
+/** Provisions a mission abroad consumes, drawn from stores (capital gate). */
+const SPY_FOOD_COST = 20;
 
 /**
  * Run a directive past the six gates. Pure — it reads world/civ state and
@@ -326,7 +395,102 @@ export function adjudicate(world: World, civ: Civ, d: Directive): Adjudication {
       return adjudicatePolicy(d);
     case "proclaim":
       return adjudicateProclaim(civ, d);
+    case "envoy":
+      return adjudicateEnvoy(world, civ, d);
+    case "pact":
+      return adjudicatePact(world, civ, d);
+    case "spy":
+      return adjudicateSpy(world, civ, d);
   }
+}
+
+/** The knowledge gate every dealing with another people shares: you cannot
+ *  treat with, speak to or spy on a people you have never met. */
+function knownCounterpart(world: World, civ: Civ, towards: number): Civ | { gate: Gate; reason: string } {
+  const other = world.civs[towards];
+  if (!other || towards === civ.id) {
+    return { gate: "knowledge", reason: "no such people is known to you" };
+  }
+  if (!civ.known.includes(towards)) {
+    return { gate: "knowledge", reason: "you have never met that people" };
+  }
+  if (!other.alive) {
+    return { gate: "knowledge", reason: `${other.name} is no more` };
+  }
+  return other;
+}
+
+const isRefusal = (v: Civ | { gate: Gate; reason: string }): v is { gate: Gate; reason: string } =>
+  !("id" in v);
+
+function adjudicateEnvoy(world: World, civ: Civ, d: EnvoyDirective): Adjudication {
+  const other = knownCounterpart(world, civ, d.towards);
+  if (isRefusal(other)) return { ok: false, ...other };
+  return {
+    ok: true,
+    summary: `send an envoy to ${other.name}`,
+    apply: (w, c) => {
+      relayMessage(w, c.id, d.towards, d.message);
+    },
+  };
+}
+
+function adjudicatePact(world: World, civ: Civ, d: PactDirective): Adjudication {
+  const other = knownCounterpart(world, civ, d.towards);
+  if (isRefusal(other)) return { ok: false, ...other };
+  if (civ.government.legitimacy < PROCLAIM_LEGITIMACY) {
+    return { ok: false, gate: "authority", reason: "your leadership lacks the standing to bind your people's word" };
+  }
+  const rel = civ.relations[d.towards];
+  if (d.action === "break") {
+    if (!rel?.treaty) {
+      return { ok: false, gate: "authority", reason: `no pact stands with ${other.name} to break` };
+    }
+    return {
+      ok: true,
+      summary: `break the pact with ${other.name}`,
+      apply: (w, c) => {
+        breakTreaty(w, c.id, d.towards);
+      },
+    };
+  }
+  if (rel?.treaty) {
+    return { ok: true, summary: `a pact already stands with ${other.name}`, apply: () => {} };
+  }
+  return {
+    ok: true,
+    summary: `offer ${other.name} a pact`,
+    apply: (w, c) => {
+      offerTreaty(w, c.id, d.towards);
+    },
+  };
+}
+
+function adjudicateSpy(world: World, civ: Civ, d: SpyDirective): Adjudication {
+  const other = knownCounterpart(world, civ, d.towards);
+  if (isRefusal(other)) return { ok: false, ...other };
+  if (d.capability && !CAPABILITY_BY_ID.has(d.capability)) {
+    return { ok: false, gate: "knowledge", reason: `"${d.capability}" is not something that can be learned` };
+  }
+  if (civ.government.centralization < SPY_CENTRALIZATION) {
+    return { ok: false, gate: "authority", reason: "your rule is too loose to direct agents abroad and keep the secret" };
+  }
+  if (civ.stores.food < SPY_FOOD_COST) {
+    return { ok: false, gate: "capital", reason: "your stores cannot provision a mission abroad" };
+  }
+  return {
+    ok: true,
+    summary: d.mission === "steal" ? `send spies to steal from ${other.name}` : `send spies to assess ${other.name}`,
+    apply: (w, c) => {
+      c.stores.food = Math.max(0, c.stores.food - SPY_FOOD_COST);
+      orderEspionage(c, {
+        target: d.towards,
+        mission: d.mission,
+        capability: d.capability,
+        year: w.year,
+      });
+    },
+  };
 }
 
 function adjudicateResearch(world: World, civ: Civ, d: ResearchDirective): Adjudication {

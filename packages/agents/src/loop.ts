@@ -132,6 +132,12 @@ function phrase(d: Directive): string {
       return "change its priorities";
     case "proclaim":
       return d.name ? `take the name ${d.name}` : "proclaim";
+    case "envoy":
+      return "send an envoy";
+    case "pact":
+      return d.action === "break" ? "break a pact" : "offer a pact";
+    case "spy":
+      return "send spies abroad";
   }
 }
 

@@ -126,6 +126,22 @@ export interface Settlement {
   leanYears?: number;
 }
 
+/**
+ * What one civilisation believes about another. Never the truth — a snapshot
+ * taken through some channel (first contact, trade, spies), noisy at capture
+ * and staler every year after `asOf`. The world moves on; the belief does not.
+ */
+export interface CivBelief {
+  /** Believed total population. */
+  population: number;
+  /** Believed sophistication (rough era of their most advanced capability). */
+  era: number;
+  /** Believed military strength (troops). */
+  military: number;
+  /** Year the estimate was taken. Staleness IS the inaccuracy. */
+  asOf: number;
+}
+
 export interface Relation {
   opinion: number; // -100..100
   atWar: boolean;
@@ -133,6 +149,40 @@ export interface Relation {
   /** Things that happened between these two. Diplomacy has memory. */
   grievances: { year: number; note: string; weight: number }[];
   contactYear: number;
+  /**
+   * All fields below are optional so pre-diplomacy snapshots keep loading;
+   * the diplomacy layer treats a missing field as its empty value.
+   */
+  /** Year the current treaty was sworn. */
+  treatySince?: number;
+  /** A standing treaty offer made by this civ, awaiting the counterpart. */
+  treatyOffer?: number | null;
+  /** Year an active trade route with this civ opened; null/absent = none. */
+  tradeSince?: number | null;
+  /** What this civ believes about the other. See {@link CivBelief}. */
+  belief?: CivBelief | null;
+  /** Messages received from the other, relayed by the engine. Bounded. */
+  inbox?: { year: number; text: string }[];
+  /** Event ids of first contact / route opening — causal anchors. */
+  contactEvent?: number;
+  tradeEvent?: number;
+}
+
+/**
+ * A standing espionage order. The agent proposes it (a `spy` directive); the
+ * engine resolves it in a later tick with a seeded roll of the sender's agency
+ * against the target's counter-intelligence — success is never an agent
+ * decision, and detection leaves a grievance behind.
+ */
+export interface EspionageOp {
+  /** Civ id the operation is run against. */
+  target: number;
+  /** Steal a capability, or assess the target (refresh beliefs). */
+  mission: "steal" | "assess";
+  /** For `steal`: the capability hoped for. Unset = whatever the spies find. */
+  capability?: string;
+  /** Year the order was given. */
+  year: number;
 }
 
 /**
@@ -232,6 +282,11 @@ export interface Civ {
    * the executor treats a missing queue as empty.
    */
   projects?: Project[];
+  /**
+   * Standing espionage orders, resolved by the tick's diplomacy stage in a
+   * later year. Optional for the same snapshot-compatibility reason.
+   */
+  espionage?: EspionageOp[];
   alive: boolean;
   extinctYear?: number;
 }
