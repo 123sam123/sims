@@ -57,6 +57,10 @@ const KIND_LABEL: Record<EventKind, string> = {
   refusal: "Refusal",
   person: "Life",
   trade: "Trade",
+  unrest: "Unrest",
+  secession: "Secession",
+  depletion: "Depletion",
+  degradation: "Degradation",
 };
 
 /** A short human label for an event kind. */
@@ -83,6 +87,10 @@ const KIND_TONE: Record<EventKind, Tone> = {
   decision: "civic",
   refusal: "civic",
   person: "neutral",
+  unrest: "conflict",
+  secession: "conflict",
+  depletion: "grave",
+  degradation: "grave",
 };
 
 export const kindTone = (k: EventKind): Tone => KIND_TONE[k] ?? "neutral";

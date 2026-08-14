@@ -34,6 +34,14 @@ export interface Grid {
   biome: Uint8Array; // index into BIOMES
   owner: Int16Array; // civ id, -1 = unclaimed
   settlement: Int16Array; // settlement id, -1 = none
+  /**
+   * Soil health, 0..1, starts pristine at 1. Long cultivation wears it down
+   * (fastest where the forest that held the topsoil is gone) and fallow land
+   * slowly recovers; effective yield everywhere is `fertility × soil`. Kept as
+   * its own array — not folded into `fertility` — so the pristine baseline
+   * survives and degradation is a located, recoverable state, not an edit.
+   */
+  soil: Float32Array;
 }
 
 export const BIOMES: Biome[] = [
@@ -124,6 +132,23 @@ export interface Settlement {
    * it reaches `ABANDON_YEARS`. Optional so older constructors keep working.
    */
   leanYears?: number;
+  /**
+   * Year an epidemic last swept this settlement. Survivors carry immunity for
+   * a while, which is what makes plagues arrive in waves rather than annually.
+   * Optional so older constructors and snapshots keep working.
+   */
+  lastPlagueYear?: number;
+  /**
+   * Event id of the standing unrest report, set when unrest first boils over
+   * and cleared when it subsides — the causal parent a later secession points
+   * at. Optional so older constructors and snapshots keep working.
+   */
+  unrestEventId?: number;
+  /**
+   * Latch: the degradation of this settlement's soils has been reported.
+   * Cleared when the land recovers, so a second decline is reported again.
+   */
+  soilStressed?: boolean;
 }
 
 export interface Relation {
@@ -263,7 +288,13 @@ export type EventKind =
   | "decision"
   | "refusal"
   | "person"
-  | "trade";
+  | "trade"
+  // The anti-snowball brakes each report through their own kind, so the log
+  // can say *why* a civilisation stalled, not just that it did.
+  | "unrest"
+  | "secession"
+  | "depletion"
+  | "degradation";
 
 export interface WorldEvent {
   id: number;
