@@ -25,10 +25,14 @@ stage wrote *this* year:
    local carrying capacity.
 4. **research** — `advanceResearch(world)`: spend scholarship toward each civ's
    target; lose unwritten knowledge whose carriers have died.
-5. **event emission** — derived, world-level events the subsystems don't own.
+5. **diplomacy** — `stepDiplomacy(world)` (see [[diplomacy]]): contact, opinions
+   with decaying grievance memory, trade, treaties, technology diffusion and
+   espionage resolution. After research so this year's discoveries can already
+   leak; before extinction so a civ's last dealings are recorded.
+6. **event emission** — derived, world-level events the subsystems don't own.
    Today that is only extinction: a living civ whose population just hit zero is
    marked `alive = false` with an `extinctYear` and a `collapse` event.
-6. **agent directive intake** — the seam where the NEXT tick's agent directives
+7. **agent directive intake** — the seam where the NEXT tick's agent directives
    are read. **No agents/LLM this ticket.** The stage is fixed in the order now
    so that, once agents exist, a directive can never take effect in the same
    tick it was issued — an agent must never observe the result of its own action
