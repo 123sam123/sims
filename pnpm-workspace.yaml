@@ -3,3 +3,6 @@ packages:
   - "apps/*"
 allowBuilds:
   esbuild: true
+  # sharp is Next.js's optional image-optimisation backend. The map is drawn to
+  # <canvas>, we use no next/image, so its native build is intentionally skipped.
+  sharp: false

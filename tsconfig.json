@@ -16,10 +16,12 @@
     "paths": {
       "@sim/engine": ["packages/engine/src/index.ts"],
       "@sim/engine/*": ["packages/engine/src/*"],
+      "@sim/runner": ["packages/runner/src/index.ts"],
       "@sim/store": ["packages/store/src/index.ts"],
       "@sim/agents": ["packages/agents/src/index.ts"]
     }
   },
   "include": ["packages/**/*.ts", "apps/**/*.ts", "apps/**/*.tsx"],
-  "exclude": ["node_modules", "**/node_modules", "**/.next"]
+  "comment": "apps/web has its own tsconfig (JSX, Next types) and is typechecked by Next, not the root.",
+  "exclude": ["node_modules", "**/node_modules", "**/.next", "apps/web"]
 }
