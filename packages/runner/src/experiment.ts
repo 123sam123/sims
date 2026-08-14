@@ -49,9 +49,12 @@
  *
  * Usage:
  *   pnpm tsx packages/runner/src/experiment.ts --seed 1 --runs 5 --years 1500
- *     [--llm auto|require|off]  default auto: run the llm arm if
- *                               ANTHROPIC_API_KEY is set, else skip it — never
- *                               silently substitute the heuristic
+ *     [--llm auto|require|off]  default auto: run the llm arm when a transport
+ *                               is available, else skip it — never silently
+ *                               substitute the heuristic
+ *     [--transport auto|api|cli] default auto: the metered API when
+ *                               ANTHROPIC_API_KEY is set, else the Claude Code
+ *                               CLI on the user's subscription auth
  *     [--model <id>]            default claude-opus-5 (matches createLlmBrain)
  *     [--max-tokens <n>]        default 12000 (thinking + output headroom)
  *     [--out <dir>]             report dir, default docs/divergence
@@ -62,10 +65,13 @@
  * 2 = llm arm incomplete (re-invoke to resume).
  */
 
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { promisify } from "node:util";
 import Anthropic from "@anthropic-ai/sdk";
 import {
   cellLat,
@@ -104,6 +110,12 @@ const DEFAULT_MODEL = "claude-opus-5"; // must match createLlmBrain's default
 const DEFAULT_MAX_TOKENS = 12000;
 const LLM_ATTEMPTS = 3; // wrapper attempts per decision (SDK retries once more inside)
 const BACKOFF_MS = [5_000, 20_000];
+const CLI_TIMEOUT_MS = 300_000; // per decision, spawn to exit
+/** Subscription usage limits reset on a rolling window: when a CLI call hits
+ *  one, the run WAITS instead of degrading to the heuristic — a stalled run is
+ *  honest, a half-heuristic run is not. */
+const USAGE_WAIT_MS = 10 * 60_000;
+const USAGE_WAIT_MAX = 48; // give up after ~8h of waiting on one decision
 const PROGRESS_EVERY = 100; // sim-years between progress lines
 const TOP_EVENTS = 20;
 const TRAJECTORY_STEP = 250; // years between capability-trajectory samples
@@ -119,6 +131,10 @@ const PRICES: Record<string, { in: number; out: number; read: number; write: num
 };
 
 interface LlmTelemetry {
+  transport?: "api" | "cli";
+  /** CLI transport only: the notional cost the CLI reports per call, summed.
+   *  On subscription auth nothing is billed — this measures usage burned. */
+  costUsd?: number;
   calls: number; // completed API decisions
   retries: number;
   /** Terminal throws — each one became a silent heuristic-fallback decision. */
@@ -181,6 +197,7 @@ interface RunConfig {
   dbPath: string;
   model?: string;
   maxTokens?: number;
+  transport?: "api" | "cli";
 }
 
 interface SettlementSummary {
@@ -444,10 +461,169 @@ function createInstrumentedLlmBrain(
   };
 }
 
+/* --- CLI transport: the user's Claude subscription via the official CLI ---
+ *
+ * `claude -p` with a custom --system-prompt (which fully replaces Claude
+ * Code's own) and all tools disallowed is a plain, supported way to run a
+ * completion on subscription OAuth — no API key, nothing billed per token.
+ * Differences from the API transport, stated for the findings: no structured-
+ * output schema enforcement (the briefing must ask for bare JSON and
+ * `parseDirectiveSet` does the decoding), no stop_reason:"refusal" channel,
+ * and each decision is a fresh CLI process (~3–5s overhead). Same briefings,
+ * same adjudication — the mind is the same model.
+ */
+
+const execFileAsync = promisify(execFile);
+
+interface CliCallOutcome {
+  text: string;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  maxTurnsHit: boolean;
+}
+
+const isUsageLimitText = (s: string): boolean =>
+  /usage limit|rate limit|hit the limit|limit reached|too many requests|overloaded|429|529/i.test(
+    s,
+  );
+
+async function callClaudeCli(
+  model: string,
+  system: string,
+  prompt: string,
+): Promise<CliCallOutcome> {
+  const args = [
+    "-p",
+    prompt,
+    "--model",
+    model,
+    "--output-format",
+    "json",
+    "--system-prompt",
+    system,
+    "--strict-mcp-config",
+    "--mcp-config",
+    '{"mcpServers":{}}',
+    "--disallowedTools",
+    "*",
+    "--max-turns",
+    "1",
+  ];
+  // cwd outside the repo so no project-level Claude settings or hooks apply.
+  const { stdout } = await execFileAsync("claude", args, {
+    timeout: CLI_TIMEOUT_MS,
+    maxBuffer: 16 * 1024 * 1024,
+    cwd: tmpdir(),
+  });
+  const parsed = JSON.parse(stdout) as {
+    is_error?: boolean;
+    subtype?: string;
+    result?: string;
+    total_cost_usd?: number;
+    usage?: {
+      input_tokens?: number;
+      output_tokens?: number;
+      cache_read_input_tokens?: number;
+      cache_creation_input_tokens?: number;
+    };
+  };
+  if (parsed.is_error || (parsed.subtype !== "success" && parsed.subtype !== "error_max_turns")) {
+    throw new Error(`claude CLI ${parsed.subtype ?? "error"}: ${parsed.result ?? stdout.slice(0, 300)}`);
+  }
+  return {
+    text: parsed.result ?? "",
+    costUsd: parsed.total_cost_usd ?? 0,
+    inputTokens: parsed.usage?.input_tokens ?? 0,
+    outputTokens: parsed.usage?.output_tokens ?? 0,
+    cacheReadTokens: parsed.usage?.cache_read_input_tokens ?? 0,
+    cacheCreationTokens: parsed.usage?.cache_creation_input_tokens ?? 0,
+    maxTurnsHit: parsed.subtype === "error_max_turns",
+  };
+}
+
+/** The API transport enforces the output schema server-side; the CLI cannot,
+ *  so the prompt carries the schema verbatim instead. */
+const CLI_SCHEMA_NOTE = `Respond with ONLY a JSON object that matches this JSON Schema — no markdown fences, no prose before or after it:\n${JSON.stringify(DIRECTIVE_OUTPUT_SCHEMA)}`;
+
+/** Tolerant twin of `parseDirectiveSet` for unenforced output: if the strict
+ *  parse yields nothing, retry on the outermost {...} span (fences, prose). */
+function decodeDirectives(text: string): DirectiveSet {
+  const direct = parseDirectiveSet(text);
+  if (direct.directives.length > 0) return direct;
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start >= 0 && end > start) return parseDirectiveSet(text.slice(start, end + 1));
+  return direct;
+}
+
+/** The subscription-auth twin of the instrumented API brain: same briefing,
+ *  same telemetry contract. On a usage-limit hit it waits and retries — a
+ *  stalled run resumes when the window resets; it never quietly goes heuristic. */
+function createCliLlmBrain(model: string, telemetry: LlmTelemetry): Brain {
+  telemetry.transport = "cli";
+  return {
+    kind: "llm-cli",
+    async decide({ briefing }: DecisionContext): Promise<DirectiveSet> {
+      const system = briefing.system.map((b) => b.text).join("\n\n");
+      const prompt = `${briefing.context}\n\n${CLI_SCHEMA_NOTE}`;
+      let waits = 0;
+      for (let attempt = 0; ; ) {
+        try {
+          const out = await callClaudeCli(model, system, prompt);
+          telemetry.calls++;
+          telemetry.costUsd = (telemetry.costUsd ?? 0) + out.costUsd;
+          telemetry.inputTokens += out.inputTokens;
+          telemetry.outputTokens += out.outputTokens;
+          telemetry.cacheReadTokens += out.cacheReadTokens;
+          telemetry.cacheCreationTokens += out.cacheCreationTokens;
+          if (out.maxTurnsHit) telemetry.degraded++;
+          const set = decodeDirectives(out.text);
+          if (set.directives.length === 0) telemetry.emptySets++;
+          return set;
+        } catch (err) {
+          const msg = String(err);
+          if (isUsageLimitText(msg)) {
+            if (waits++ >= USAGE_WAIT_MAX) {
+              telemetry.terminalFailures++;
+              if (telemetry.errors.length < 20) telemetry.errors.push(msg.slice(0, 300));
+              throw err;
+            }
+            process.stdout.write(
+              `    (usage limit — waiting ${USAGE_WAIT_MS / 60000} min, wait ${waits}/${USAGE_WAIT_MAX})\n`,
+            );
+            await sleep(USAGE_WAIT_MS);
+            continue; // waits do not consume retry attempts
+          }
+          if (attempt < LLM_ATTEMPTS - 1) {
+            attempt++;
+            telemetry.retries++;
+            await sleep(BACKOFF_MS[Math.min(attempt - 1, BACKOFF_MS.length - 1)]);
+            continue;
+          }
+          telemetry.terminalFailures++;
+          if (telemetry.errors.length < 20) telemetry.errors.push(msg.slice(0, 300));
+          throw err;
+        }
+      }
+    },
+  };
+}
+
 /** One real call before the arm launches, so a dead key or bad model name fails
  *  loudly here instead of producing five silently-heuristic "LLM" runs. */
-async function preflightLlm(model: string): Promise<string | null> {
+async function preflightLlm(model: string, transport: "api" | "cli"): Promise<string | null> {
   try {
+    if (transport === "cli") {
+      const out = await callClaudeCli(
+        model,
+        "You are a connectivity check.",
+        "Reply with the single word OK.",
+      );
+      return out.text.includes("OK") ? null : `unexpected reply: ${out.text.slice(0, 100)}`;
+    }
     const client = new Anthropic({ maxRetries: 1 });
     await client.messages.create({
       model,
@@ -617,11 +793,14 @@ async function runOne(cfg: RunConfig): Promise<RunCapture> {
     } else {
       const telemetry = cap.llm ?? emptyTelemetry();
       cap.llm = telemetry;
-      brain = createInstrumentedLlmBrain(
-        cfg.model ?? DEFAULT_MODEL,
-        cfg.maxTokens ?? DEFAULT_MAX_TOKENS,
-        telemetry,
-      );
+      brain =
+        cfg.transport === "cli"
+          ? createCliLlmBrain(cfg.model ?? DEFAULT_MODEL, telemetry)
+          : createInstrumentedLlmBrain(
+              cfg.model ?? DEFAULT_MODEL,
+              cfg.maxTokens ?? DEFAULT_MAX_TOKENS,
+              telemetry,
+            );
       fallback = createHeuristicBrain();
     }
     await advanceWorldWithDecisions(
@@ -1026,15 +1205,18 @@ function renderLlmTelemetry(runs: RunSummary[], model: string): string[] {
           ? " ⚠"
           : "";
     const uncached = Math.max(0, t.inputTokens - t.cacheReadTokens - t.cacheCreationTokens);
-    const c = estimateCost(model, t);
+    const c = t.transport === "cli" ? (t.costUsd ?? 0) : estimateCost(model, t);
     cost += c;
     lines.push(
       `| ${r.runIndex}${flag} | ${t.calls} | ${t.terminalFailures} | ${t.degraded} | ${t.refusals} | ${t.emptySets} | ${t.retries} | ${fmt(t.cacheReadTokens)} | ${fmt(t.cacheCreationTokens)} | ${fmt(uncached)} | ${fmt(t.outputTokens)} | $${c.toFixed(2)} | ${(r.capture.wallSeconds ?? 0).toFixed(0)}s |`,
     );
   }
+  const viaCli = runs.some((r) => r.capture.llm?.transport === "cli");
   lines.push(
     "",
-    `Model \`${model}\`. Total estimated cost **$${cost.toFixed(2)}** (list prices; the console bill is authoritative).`,
+    viaCli
+      ? `Model \`${model}\` via the Claude Code CLI on subscription auth — nothing billed per token; **$${cost.toFixed(2)}** is the CLI-reported notional usage.`
+      : `Model \`${model}\`. Total estimated cost **$${cost.toFixed(2)}** (list prices; the console bill is authoritative).`,
     "A fallback is a decision the heuristic took after terminal API failure — a run flagged ☠ was ≥10% heuristic and is not a clean LLM run.",
     "Degraded = output truncated at max_tokens; refusals and empty sets are silent 'held course' decisions, disambiguated here because the event log cannot.",
     "",
@@ -1173,10 +1355,16 @@ async function main(): Promise<void> {
 
   if (!["auto", "require", "off"].includes(llmFlag)) fail("--llm must be auto|require|off");
   const haveKey = Boolean(process.env.ANTHROPIC_API_KEY);
-  if (llmFlag === "require" && !haveKey) {
-    fail("--llm require, but ANTHROPIC_API_KEY is not set");
+  const transportFlag = asString(flags.transport) ?? "auto";
+  if (!["auto", "api", "cli"].includes(transportFlag)) fail("--transport must be auto|api|cli");
+  // auto: a key means the metered API; no key falls back to the Claude Code CLI
+  // on the user's subscription auth (validated by the preflight, never assumed).
+  const transport: "api" | "cli" =
+    transportFlag === "auto" ? (haveKey ? "api" : "cli") : (transportFlag as "api" | "cli");
+  if (llmFlag === "require" && transport === "api" && !haveKey) {
+    fail("--llm require with the api transport, but ANTHROPIC_API_KEY is not set");
   }
-  const runLlm = llmFlag !== "off" && haveKey;
+  const runLlm = llmFlag !== "off" && (transport === "cli" || haveKey);
 
   mkdirSync(dbDir, { recursive: true });
   mkdirSync(outDir, { recursive: true });
@@ -1189,6 +1377,7 @@ async function main(): Promise<void> {
     dbPath: join(dbDir, `${mode}-${runIndex}.db`),
     model: mode === "llm" ? model : undefined,
     maxTokens: mode === "llm" ? maxTokens : undefined,
+    transport: mode === "llm" ? transport : undefined,
   });
 
   const armConfigs = new Map<ArmMode, RunConfig[]>([
@@ -1244,8 +1433,9 @@ async function main(): Promise<void> {
           : "SKIPPED — no ANTHROPIC_API_KEY set; heuristic was NOT substituted";
       process.stdout.write(`Arm C: ${llmStatus}\n`);
     } else {
-      process.stdout.write(`Arm C: llm ×${runs} (model ${model}) — preflight…\n`);
-      const preflightError = await preflightLlm(model);
+      const via = transport === "cli" ? "Claude Code CLI, subscription auth" : "Anthropic API";
+      process.stdout.write(`Arm C: llm ×${runs} (model ${model} via ${via}) — preflight…\n`);
+      const preflightError = await preflightLlm(model, transport);
       if (preflightError) fail(`LLM preflight failed: ${preflightError}`);
       process.stdout.write("  preflight ok; launching runs concurrently\n");
       const settled = await Promise.allSettled(
@@ -1257,8 +1447,8 @@ async function main(): Promise<void> {
       }
       llmIncomplete = failures.length > 0;
       llmStatus = llmIncomplete
-        ? `ran with model ${model}; ${failures.length}/${runs} runs incomplete — re-invoke to resume`
-        : `ran with model ${model}`;
+        ? `ran with model ${model} via ${via}; ${failures.length}/${runs} runs incomplete — re-invoke to resume`
+        : `ran with model ${model} via ${via}`;
     }
   }
 
