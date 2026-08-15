@@ -25,10 +25,24 @@ export interface Brain {
   decide(ctx: DecisionContext): Promise<DirectiveSet>;
 }
 
+/** What one model call consumed — the hook the attention budget meters by.
+ *  Token counts come straight from the API's usage block. */
+export interface BrainUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  stopReason: string | null;
+}
+
 export interface LlmBrainOptions {
   apiKey?: string;
   model?: string;
   maxTokens?: number;
+  /** Called after every completed model call with its usage. This is how the
+   *  runner's attention budget sees real spend without the brain knowing any
+   *  budget exists — the brain proposes, the budget meters. */
+  onUsage?: (usage: BrainUsage) => void;
 }
 
 /** The model as the constraints require it: `claude-opus-5`, structured output
@@ -52,6 +66,14 @@ export function createLlmBrain(opts: LlmBrainOptions = {}): Brain {
         output_config: {
           format: { type: "json_schema", schema: DIRECTIVE_OUTPUT_SCHEMA as Record<string, unknown> },
         },
+      });
+
+      opts.onUsage?.({
+        inputTokens: message.usage.input_tokens,
+        outputTokens: message.usage.output_tokens,
+        cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
+        cacheCreationTokens: message.usage.cache_creation_input_tokens ?? 0,
+        stopReason: message.stop_reason,
       });
 
       // A streaming classifier can intervene; handle that before touching content.
