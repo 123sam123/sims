@@ -5,22 +5,28 @@
  * runs. Every stage runs in the same order every year, and a later stage reads
  * what an earlier stage wrote *this* year:
  *
- *   1. environment   — the physical planet. Relief and climate are fixed after
- *                      worldgen; the one living environmental process, forest
- *                      regrowth, runs inside production, so this stage is an
- *                      explicit no-op seam where future climate/season lands.
+ *   1. environment   — the physical planet's own processes: soil wears out
+ *                      under long cultivation and heals when left fallow
+ *                      (`stepEnvironment`); forest regrowth still runs inside
+ *                      production. Relief and climate stay fixed after worldgen.
  *   2. production     — land + labour -> goods, into stores, deposits, forest.
- *   3. settlement     — population, migration, founding, territory. `stepSettlements`
+ *   3. settlement     — population, migration, founding, territory, and the
+ *                      overextension brake (unrest, secession). `stepSettlements`
  *                      OWNS the population step: migration is the release valve
  *                      for population pressure, so the two are one call, not two.
- *   4. research       — spend scholarship toward each civ's target; lose unwritten
+ *   4. disease        — epidemic waves seeded by density and contact, spreading
+ *                      along the settlement network (`stepDisease`). Runs after
+ *                      the population step so a wave's dead are gone before
+ *                      research counts its capability holders — a great plague
+ *                      can genuinely cost a civilisation its knowledge.
+ *   5. research       — spend scholarship toward each civ's target; lose unwritten
  *                      knowledge whose carriers have died.
- *   5. diplomacy      — contact, opinions with decaying memory, trade, treaties,
+ *   6. diplomacy      — contact, opinions with decaying memory, trade, treaties,
  *                      technology diffusion and espionage resolution. Runs after
  *                      research so this year's discoveries can already leak, and
  *                      before extinction so a civ's last dealings are recorded.
- *   6. event emission — world-level events the subsystems don't own (extinctions).
- *   7. directive execution — draw down the standing projects an agent's accepted
+ *   7. event emission — world-level events the subsystems don't own (extinctions).
+ *   8. directive execution — draw down the standing projects an agent's accepted
  *                      directives enqueued in an EARLIER year. The decisions
  *                      themselves (LLM/heuristic) are made by the runner between
  *                      ticks and only enqueue work; executing it here, last, is
@@ -39,6 +45,8 @@
  */
 
 import { type DiplomacyReport, stepDiplomacy } from "./diplomacy.ts";
+import { type DiseaseReport, stepDisease } from "./disease.ts";
+import { type EnvironmentReport, stepEnvironment } from "./environment.ts";
 import { emit } from "./events.ts";
 import { advanceResearch, type ResearchResult } from "./research.ts";
 import { runProduction, type ProductionResult } from "./production.ts";
@@ -49,8 +57,10 @@ import { civPopulation, type World } from "./types.ts";
 export interface TickReport {
   /** The year that was just simulated (the value of `world.year` on entry). */
   year: number;
+  environment: EnvironmentReport;
   production: ProductionResult[];
   settlement: SettlementReport;
+  disease: DiseaseReport;
   research: ResearchResult[];
   /** Contact, trade, treaties, diffusion and espionage this year. */
   diplomacy: DiplomacyReport;
@@ -67,7 +77,8 @@ export interface TickReport {
 export function tickWorld(world: World): TickReport {
   const year = world.year;
 
-  // 1. environment — fixed relief/climate; forest regrowth lives in production.
+  // 1. environment — soil wear and recovery; forest regrowth lives in production.
+  const environment = stepEnvironment(world);
 
   // 2. production
   const production = runProduction(world);
@@ -75,21 +86,35 @@ export function tickWorld(world: World): TickReport {
   // 3. population + settlement / migration (one call; settlement owns population)
   const settlement = stepSettlements(world);
 
-  // 4. research and knowledge loss
+  // 4. epidemic disease — after the population step, before research counts
+  //    capability holders, so a plague year can cost knowledge the same year.
+  const disease = stepDisease(world);
+
+  // 5. research and knowledge loss
   const research = advanceResearch(world);
 
-  // 5. diplomacy — contact, relations, trade, diffusion, espionage
+  // 6. diplomacy — contact, relations, trade, diffusion, espionage
   const diplomacy = stepDiplomacy(world);
 
-  // 6. event emission — derived, world-level
+  // 7. event emission — derived, world-level
   const extinctions = emitExtinctions(world, year);
 
-  // 7. agent directive execution — advance projects accepted in an earlier year.
+  // 8. agent directive execution — advance projects accepted in an earlier year.
   const projects = executeDirectives(world);
 
   world.year = year + 1;
 
-  return { year, production, settlement, research, diplomacy, extinctions, projects };
+  return {
+    year,
+    environment,
+    production,
+    settlement,
+    disease,
+    research,
+    diplomacy,
+    extinctions,
+    projects,
+  };
 }
 
 /**

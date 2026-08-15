@@ -27,8 +27,9 @@ import {
   type WorldEvent,
 } from "./types.ts";
 
-/** Bump when the serialised shape changes incompatibly. */
-export const WORLD_FORMAT_VERSION = 1;
+/** Bump when the serialised shape changes incompatibly.
+ *  v2 added `grid.soil`; v1 snapshots are migrated on read (soil ← pristine). */
+export const WORLD_FORMAT_VERSION = 2;
 
 type TypedArray = Uint8Array | Int16Array | Float32Array | Float64Array;
 
@@ -76,6 +77,8 @@ interface SerializedGrid {
   biome: string;
   owner: string;
   settlement: string;
+  /** Absent in v1 snapshots; migrated to pristine (all 1) on read. */
+  soil?: string;
 }
 
 /** A settlement with its two typed-array fields swapped for base64. */
@@ -112,6 +115,7 @@ function serializeGrid(g: Grid): SerializedGrid {
     biome: encodeTA(g.biome),
     owner: encodeTA(g.owner),
     settlement: encodeTA(g.settlement),
+    soil: encodeTA(g.soil),
   };
 }
 
@@ -128,6 +132,11 @@ function deserializeGrid(s: SerializedGrid): Grid {
     biome: decodeTA(Uint8Array, s.biome, CELL_COUNT),
     owner: decodeTA(Int16Array, s.owner, CELL_COUNT),
     settlement: decodeTA(Int16Array, s.settlement, CELL_COUNT),
+    // v1 snapshots predate soil tracking: their land has never been degraded.
+    soil:
+      s.soil !== undefined
+        ? decodeTA(Float32Array, s.soil, CELL_COUNT)
+        : new Float32Array(CELL_COUNT).fill(1),
   };
 }
 
@@ -162,9 +171,10 @@ export function serializeWorld(world: World): SerializedWorld {
   };
 }
 
-/** JSON-safe object -> World. Rejects a version it does not understand. */
+/** JSON-safe object -> World. Reads the current version and every older one it
+ *  can migrate (v1 → soil filled pristine); rejects anything else. */
 export function deserializeWorld(s: SerializedWorld): World {
-  if (s.v !== WORLD_FORMAT_VERSION) {
+  if (s.v !== WORLD_FORMAT_VERSION && s.v !== 1) {
     throw new Error(
       `world: unsupported format version ${s.v} (this build reads ${WORLD_FORMAT_VERSION})`,
     );
