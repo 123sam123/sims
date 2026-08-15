@@ -12,6 +12,7 @@ export * from "./events.ts";
 export * from "./rng.ts";
 export * from "./geo-data.ts";
 export * from "./knowledge.ts";
+export * from "./military.ts";
 export * from "./production.ts";
 export * from "./pop.ts";
 export * from "./settlement.ts";

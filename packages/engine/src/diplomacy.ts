@@ -91,6 +91,9 @@ export const GRIEVANCE_FORGOTTEN_BELOW = 1;
 export const TREATY_BREAK_WEIGHT = 0.8;
 /** Grievance weight of catching another civ's spies. */
 export const SPY_CAUGHT_WEIGHT = 0.35;
+/** Grievance weight of having war declared on you. Aggression is remembered
+ * almost as long as a broken pact. */
+export const WAR_AGGRESSION_WEIGHT = 0.55;
 
 /** Opinion drift from mere peaceful acquaintance, per year and its cap. */
 export const FAMILIARITY_RATE = 0.1;
@@ -386,6 +389,94 @@ export function breakTreaty(
     text: `${breaker.name} broke its pact with ${other.name}.`,
     causedBy: rb.contactEvent !== undefined ? [rb.contactEvent] : [],
   });
+  return true;
+}
+
+/**
+ * Open a war between two civs that have met. Both relations flip to `atWar`,
+ * any standing treaty is torn up first (a separate, remembered betrayal), the
+ * defender records an aggression grievance, and one `war` event is emitted and
+ * anchored on both relations so every battle can point back at it. Returns the
+ * event, or null when there was no war to open (unmet, dead, or already at
+ * war). This is the single write path into a war — the engine's own ignition
+ * (see `military.ts`) and the agent layer both come through here.
+ */
+export function declareWar(
+  world: World,
+  attackerId: number,
+  defenderId: number,
+  note = "made unprovoked war upon us",
+): WorldEvent | null {
+  const attacker = world.civs[attackerId];
+  const defender = world.civs[defenderId];
+  if (!attacker?.alive || !defender?.alive || attackerId === defenderId) return null;
+  if (!attacker.known.includes(defenderId)) return null;
+  const ra = attacker.relations[defenderId];
+  const rb = defender.relations[attackerId];
+  if (!ra || !rb || ra.atWar || rb.atWar) return null;
+
+  if (ra.treaty || rb.treaty) {
+    breakTreaty(world, attackerId, defenderId, "broke the pact and marched to war");
+  }
+
+  ra.atWar = true;
+  rb.atWar = true;
+  ra.warSince = world.year;
+  rb.warSince = world.year;
+  ra.peaceOffer = null;
+  rb.peaceOffer = null;
+  const event = emit(world, {
+    kind: "war",
+    civ: attackerId,
+    fields: { civ: attacker.name, other: defender.name },
+    causedBy: rb.contactEvent !== undefined ? [rb.contactEvent] : [],
+  });
+  ra.warEvent = event.id;
+  rb.warEvent = event.id;
+  addGrievance(world, defenderId, attackerId, note, WAR_AGGRESSION_WEIGHT);
+  ra.opinion = effectiveOpinion(ra, world.year);
+  return event;
+}
+
+/**
+ * End the war between two civs: both relations return to peace and a `peace`
+ * event is emitted, caused by the declaration that opened the war. The terms
+ * are whatever the map now says — the engine does not hand territory back.
+ * Returns the event, or null when no war stood.
+ */
+export function makePeace(world: World, aId: number, bId: number): WorldEvent | null {
+  const a = world.civs[aId];
+  const b = world.civs[bId];
+  const ra = a?.relations[bId];
+  const rb = b?.relations[aId];
+  if (!a || !b || !ra || !rb || (!ra.atWar && !rb.atWar)) return null;
+
+  const cause = ra.warEvent ?? rb.warEvent;
+  ra.atWar = false;
+  rb.atWar = false;
+  ra.warSince = null;
+  rb.warSince = null;
+  ra.peaceOffer = null;
+  rb.peaceOffer = null;
+  ra.opinion = effectiveOpinion(ra, world.year);
+  rb.opinion = effectiveOpinion(rb, world.year);
+  const lo = aId < bId ? a : b;
+  const hi = aId < bId ? b : a;
+  return emit(world, {
+    kind: "peace",
+    civ: lo.id,
+    fields: { civ: lo.name, other: hi.name },
+    causedBy: cause !== undefined ? [cause] : [],
+  });
+}
+
+/** Record a standing plea for peace in a war this civ is fighting. The war
+ * ends when both sides plead — or when the other is worn down enough to take
+ * the offer (weighed by the military step). Returns false when not at war. */
+export function sueForPeace(world: World, fromId: number, toId: number): boolean {
+  const rel = world.civs[fromId]?.relations[toId];
+  if (!rel?.atWar) return false;
+  rel.peaceOffer = world.year;
   return true;
 }
 

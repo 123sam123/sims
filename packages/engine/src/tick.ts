@@ -19,6 +19,10 @@
  *                      technology diffusion and espionage resolution. Runs after
  *                      research so this year's discoveries can already leak, and
  *                      before extinction so a civ's last dealings are recorded.
+ *   5b. war           — ignition, muster, marching, battle, conquest and peace.
+ *                      After diplomacy so wars ignite from this year's opinions
+ *                      and beliefs; before extinction so a people destroyed in
+ *                      war is mourned the same year it fell.
  *   6. event emission — world-level events the subsystems don't own (extinctions).
  *   7. directive execution — draw down the standing projects an agent's accepted
  *                      directives enqueued in an EARLIER year. The decisions
@@ -40,6 +44,7 @@
 
 import { type DiplomacyReport, stepDiplomacy } from "./diplomacy.ts";
 import { emit } from "./events.ts";
+import { type MilitaryReport, stepMilitary } from "./military.ts";
 import { advanceResearch, type ResearchResult } from "./research.ts";
 import { runProduction, type ProductionResult } from "./production.ts";
 import { executeDirectives, type ProjectResult } from "./projects.ts";
@@ -54,6 +59,8 @@ export interface TickReport {
   research: ResearchResult[];
   /** Contact, trade, treaties, diffusion and espionage this year. */
   diplomacy: DiplomacyReport;
+  /** Wars, battles, attrition, conquest and peace this year. */
+  military: MilitaryReport;
   /** Civ ids that died out this year. */
   extinctions: number[];
   /** Standing projects advanced this year, per civ. */
@@ -81,6 +88,12 @@ export function tickWorld(world: World): TickReport {
   // 5. diplomacy — contact, relations, trade, diffusion, espionage
   const diplomacy = stepDiplomacy(world);
 
+  // 5b. war — ignition, muster, marching, battle, conquest and peace. After
+  //     diplomacy so this year's opinions and beliefs are what wars ignite
+  //     from; before extinction so a people destroyed in war is mourned in
+  //     the same year it fell.
+  const military = stepMilitary(world);
+
   // 6. event emission — derived, world-level
   const extinctions = emitExtinctions(world, year);
 
@@ -89,7 +102,16 @@ export function tickWorld(world: World): TickReport {
 
   world.year = year + 1;
 
-  return { year, production, settlement, research, diplomacy, extinctions, projects };
+  return {
+    year,
+    production,
+    settlement,
+    research,
+    diplomacy,
+    military,
+    extinctions,
+    projects,
+  };
 }
 
 /**

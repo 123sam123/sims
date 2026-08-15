@@ -74,7 +74,7 @@ Issue a short list of directives, each one of:
 - policy: set effort shares (0..1) across farming, building, research, military.
 - proclaim: name your people, declare a form of government, or record a law or event.
 - envoy: send words to a people you have met (give their civ id and the message).
-- pact: offer a treaty to a people you have met, or break the one that stands (a broken pact is remembered for centuries).
+- pact: offer a treaty to a people you have met, break the one that stands (a broken pact is remembered for centuries), declare war on them, or sue for peace in a war you are fighting. War is never blocked and never free: soldiers stop producing, equipment costs real goods, campaigns eat the granary, and the dead are your own people. A peace plea ends the war only when both sides will it, or the other side is worn down enough to take it.
 - spy: send agents into a people you have met, to steal a capability or assess their strength. The world decides whether they succeed — and whether they are caught.
 
 What you know of other peoples is only what contact, trade and your own spies have brought back. Your beliefs about them may be old or wrong.
