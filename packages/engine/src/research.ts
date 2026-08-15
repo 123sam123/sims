@@ -26,6 +26,7 @@ import {
   type Capability,
   STARTING_CAPABILITIES,
   blockedBecause,
+  meetsGates,
   researchable,
 } from "./knowledge.ts";
 import { emit } from "./events.ts";
@@ -337,9 +338,7 @@ function nextStepToward(
 
   const unmet = cap.needs.filter((n) => !held.has(n));
   if (unmet.length === 0) {
-    return isResearchableNow(cap, held, hasMaterial, hasTerrain, population)
-      ? goalId
-      : null;
+    return meetsGates(cap, held, hasMaterial, hasTerrain, population) ? goalId : null;
   }
 
   const ordered = unmet
@@ -354,21 +353,6 @@ function nextStepToward(
   return null;
 }
 
-/** A single capability's version of the `researchable()` filter. */
-function isResearchableNow(
-  cap: Capability,
-  held: Set<string>,
-  hasMaterial: (m: ResourceKind) => boolean,
-  hasTerrain: (t: string) => boolean,
-  population: number,
-): boolean {
-  if (held.has(cap.id)) return false;
-  if (!cap.needs.every((n) => held.has(n))) return false;
-  if (cap.materials && !cap.materials.every(hasMaterial)) return false;
-  if (cap.terrain && !cap.terrain.some(hasTerrain)) return false;
-  if (cap.minPop && population < cap.minPop) return false;
-  return true;
-}
 
 /** The honest reason a directive cannot advance: the first material/terrain/
  * population wall found in the goal's dependency closure. */

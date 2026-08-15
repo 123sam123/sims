@@ -72,6 +72,9 @@ export const ORE_COL: Record<string, string> = {
   gold: "#e8c04a",
   silver: "#dfe4e8",
   uranium: "#7fd36a",
+  bauxite: "#b0623a",
+  silica: "#e8e3d1",
+  rare_earth: "#c77fd3",
 };
 
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);

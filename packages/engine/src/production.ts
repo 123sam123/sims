@@ -120,6 +120,9 @@ const EXTRACTION_CAP: Record<ResourceKind, string> = {
   silver: "smelting",
   oil: "chemistry",
   uranium: "chemistry",
+  bauxite: "aluminium",
+  silica: "glass",
+  rare_earth: "industrial_chemistry",
 };
 
 const clamp = (lo: number, hi: number, v: number) => Math.max(lo, Math.min(hi, v));
