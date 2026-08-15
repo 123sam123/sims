@@ -66,7 +66,9 @@ forgotten cap costs 40% to relearn), `SCHOLARLY_ERA_MIN`.
 ## Boundaries
 
 - **Diffusion between civs is NOT here** — technology spreading on contact/trade
-  belongs to SIMS-GCD4YZ.
+  lives in [[diplomacy]], which grants through this layer's `adoptCapability`
+  (same holders/event bookkeeping as a home-grown discovery) and filters
+  candidates with the same `researchable()` gates.
 - **The tick orchestrator (SIMS-N872WA) owns call order.** Loss reads the *current*
   `civPopulation`, so run pop/production (which set population) before research in
   the tick, or a plague's loss lags a year. War killing *specific* scholars would

@@ -505,7 +505,13 @@ const eraOf = (id: string): number => CAPABILITY_BY_ID.get(id)?.era ?? 0;
  * Gaining a capability
  * ------------------------------------------------------------------ */
 
-function gainCapability(world: World, civ: Civ, id: string, population: number): void {
+function gainCapability(
+  world: World,
+  civ: Civ,
+  id: string,
+  population: number,
+  via?: string,
+): void {
   civ.capabilities.push(id);
   const fi = civ.forgotten.indexOf(id);
   if (fi >= 0) civ.forgotten.splice(fi, 1);
@@ -523,8 +529,28 @@ function gainCapability(world: World, civ: Civ, id: string, population: number):
     civ.id,
     null,
     clamp(0.3, 1, 0.3 + (cap?.era ?? 0) * 0.1),
-    `${civ.name} learned ${cap?.name ?? id}.`,
+    `${civ.name} learned ${cap?.name ?? id}${via ? ` ${via}` : ""}.`,
   );
+}
+
+/**
+ * Grant a capability a civ did not research itself — the diffusion/espionage
+ * path. Goes through the same holders/event bookkeeping as a home-grown
+ * discovery, so written-ness, institutions and the event log stay consistent.
+ * `via` finishes the headline (e.g. `"from the traders of Ur"`). The CALLER is
+ * responsible for the possibility gates — this only refuses the trivially
+ * wrong (unknown id, already held). Returns whether the capability landed.
+ */
+export function adoptCapability(
+  world: World,
+  civ: Civ,
+  capId: string,
+  via?: string,
+): boolean {
+  const cap = CAPABILITY_BY_ID.get(capId);
+  if (!cap || civ.capabilities.includes(capId)) return false;
+  gainCapability(world, civ, capId, civPopulation(world, civ.id), via);
+  return true;
 }
 
 /* ------------------------------------------------------------------ *

@@ -30,10 +30,14 @@ stage wrote *this* year:
    holders — a great plague can cost a civilisation its knowledge that year.
 5. **research** — `advanceResearch(world)`: spend scholarship toward each civ's
    target; lose unwritten knowledge whose carriers have died.
-6. **event emission** — derived, world-level events the subsystems don't own.
+6. **diplomacy** — `stepDiplomacy(world)` (see [[diplomacy]]): contact, opinions
+   with decaying grievance memory, trade, treaties, technology diffusion and
+   espionage resolution. After research so this year's discoveries can already
+   leak; before extinction so a civ's last dealings are recorded.
+7. **event emission** — derived, world-level events the subsystems don't own.
    Today that is only extinction: a living civ whose population just hit zero is
    marked `alive = false` with an `extinctYear` and a `collapse` event.
-7. **agent directive execution** — draw down standing projects accepted in an
+8. **agent directive execution** — draw down standing projects accepted in an
    EARLIER year. The stage is fixed last so a directive can never take effect in
    the same tick it was issued — an agent must never observe the result of its
    own action within a tick (that is how oracle behaviour creeps in).

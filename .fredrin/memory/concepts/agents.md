@@ -37,8 +37,9 @@ inside the tick that issued it. Pinned by a test.
 `buildBriefing(world, civ)` is built from what a civ *believes*, never from
 `World`. It reads the civ's own state freely, but other civs only through
 `known` / `relations` — never their capabilities, stores, population or the name
-they chose. Contact/diplomacy (a later ticket) is what populates `known`; until
-then a briefing simply contains no other-civ ground truth. Without this,
+they chose. Contact/diplomacy (see [[diplomacy]]) populates `known` and the
+noisy `Relation.belief` snapshots the briefing renders; a civ that has met
+nobody still sees no other-civ ground truth. Without this,
 diplomacy is trivial and the premise collapses. Pinned by a leakage test that
 injects a secret neighbour and asserts none of it appears unmet, and only the
 name+relation appears once met.

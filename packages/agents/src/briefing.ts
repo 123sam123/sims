@@ -73,6 +73,11 @@ Issue a short list of directives, each one of:
 - settle: found a new settlement where your reach and land allow.
 - policy: set effort shares (0..1) across farming, building, research, military.
 - proclaim: name your people, declare a form of government, or record a law or event.
+- envoy: send words to a people you have met (give their civ id and the message).
+- pact: offer a treaty to a people you have met, or break the one that stands (a broken pact is remembered for centuries).
+- spy: send agents into a people you have met, to steal a capability or assess their strength. The world decides whether they succeed — and whether they are caught.
+
+What you know of other peoples is only what contact, trade and your own spies have brought back. Your beliefs about them may be old or wrong.
 
 Be true to your people's character. Reach for what is just beyond you; the refusals will teach you the shape of the world.`;
 
@@ -151,21 +156,50 @@ function describeNeighbours(world: World, civ: Civ): string {
   const lines = ["Peoples you have encountered:"];
   for (const otherId of civ.known) {
     const rel = civ.relations[otherId];
-    // Only the met civ's chosen name and the recorded relation — never its
-    // capabilities, stores or true strength. That is contact's job, not ours.
+    // Only the met civ's chosen name and this civ's OWN recorded relation and
+    // beliefs — never the other's true capabilities, stores or strength.
     const other = world.civs.find((c) => c.id === otherId);
     const name = other ? other.name : `a people (${otherId})`;
     if (!rel) {
-      lines.push(`  ${name}: encountered, no dealings recorded.`);
+      lines.push(`  ${name} (civ ${otherId}): encountered, no dealings recorded.`);
       continue;
     }
     const bits = [`opinion ${rel.opinion}`];
     if (rel.atWar) bits.push("at war");
     if (rel.treaty) bits.push(`treaty: ${rel.treaty}`);
-    bits.push(`since year ${rel.contactYear}`);
-    lines.push(`  ${name}: ${bits.join(", ")}.`);
+    if (rel.tradeSince !== undefined && rel.tradeSince !== null) {
+      bits.push(`trading since year ${rel.tradeSince}`);
+    }
+    bits.push(`met year ${rel.contactYear}`);
+    lines.push(`  ${name} (civ ${otherId}): ${bits.join(", ")}.`);
+    if (rel.belief) {
+      lines.push(
+        `    You reckon them some ${rel.belief.population.toLocaleString()} people, of era ${rel.belief.era}, about ${rel.belief.military.toLocaleString()} under arms — as of year ${rel.belief.asOf}. The world may have moved on.`,
+      );
+    }
+    const grudge = freshestGrievance(rel);
+    if (grudge) {
+      lines.push(`    Your people remember: they ${grudge.note} (year ${grudge.year}).`);
+    }
+    if (rel.inbox && rel.inbox.length > 0) {
+      lines.push("    Words they have sent you:");
+      for (const m of rel.inbox) lines.push(`      [year ${m.year}] ${m.text}`);
+    }
   }
   return lines.join("\n");
+}
+
+/** The wrong that still stings most — heaviest first, newest breaking ties. */
+function freshestGrievance(
+  rel: NonNullable<Civ["relations"][number]>,
+): { year: number; note: string } | null {
+  let best: { year: number; note: string; weight: number } | null = null;
+  for (const g of rel.grievances) {
+    if (!best || g.weight > best.weight || (g.weight === best.weight && g.year > best.year)) {
+      best = g;
+    }
+  }
+  return best;
 }
 
 function describeResearchable(world: World, civ: Civ): string[] {

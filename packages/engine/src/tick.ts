@@ -21,8 +21,12 @@
  *                      can genuinely cost a civilisation its knowledge.
  *   5. research       — spend scholarship toward each civ's target; lose unwritten
  *                      knowledge whose carriers have died.
- *   6. event emission — world-level events the subsystems don't own (extinctions).
- *   7. directive execution — draw down the standing projects an agent's accepted
+ *   6. diplomacy      — contact, opinions with decaying memory, trade, treaties,
+ *                      technology diffusion and espionage resolution. Runs after
+ *                      research so this year's discoveries can already leak, and
+ *                      before extinction so a civ's last dealings are recorded.
+ *   7. event emission — world-level events the subsystems don't own (extinctions).
+ *   8. directive execution — draw down the standing projects an agent's accepted
  *                      directives enqueued in an EARLIER year. The decisions
  *                      themselves (LLM/heuristic) are made by the runner between
  *                      ticks and only enqueue work; executing it here, last, is
@@ -40,6 +44,7 @@
  * fresh world, `world.year === N`.
  */
 
+import { type DiplomacyReport, stepDiplomacy } from "./diplomacy.ts";
 import { type DiseaseReport, stepDisease } from "./disease.ts";
 import { type EnvironmentReport, stepEnvironment } from "./environment.ts";
 import { emit } from "./events.ts";
@@ -57,6 +62,8 @@ export interface TickReport {
   settlement: SettlementReport;
   disease: DiseaseReport;
   research: ResearchResult[];
+  /** Contact, trade, treaties, diffusion and espionage this year. */
+  diplomacy: DiplomacyReport;
   /** Civ ids that died out this year. */
   extinctions: number[];
   /** Standing projects advanced this year, per civ. */
@@ -86,10 +93,13 @@ export function tickWorld(world: World): TickReport {
   // 5. research and knowledge loss
   const research = advanceResearch(world);
 
-  // 6. event emission — derived, world-level
+  // 6. diplomacy — contact, relations, trade, diffusion, espionage
+  const diplomacy = stepDiplomacy(world);
+
+  // 7. event emission — derived, world-level
   const extinctions = emitExtinctions(world, year);
 
-  // 7. agent directive execution — advance projects accepted in an earlier year.
+  // 8. agent directive execution — advance projects accepted in an earlier year.
   const projects = executeDirectives(world);
 
   world.year = year + 1;
@@ -101,6 +111,7 @@ export function tickWorld(world: World): TickReport {
     settlement,
     disease,
     research,
+    diplomacy,
     extinctions,
     projects,
   };
