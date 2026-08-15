@@ -210,7 +210,10 @@ function produceCiv(world: World, civ: Civ, cells: number[]): ProductionResult {
   const rng = new Rng(hashSeed("prod", civ.id, world.year));
   const weather = clamp(WEATHER_MIN, WEATHER_MAX, 1 + WEATHER_SPREAD * rng.normal());
 
-  const labour = workingAgePopulation(world, civ.id);
+  // Soldiers under arms are working-age hands withdrawn from the fields, the
+  // woods and the mines — an army is paid for in lost production before it
+  // ever fights (see `military.ts`).
+  const labour = Math.max(0, workingAgePopulation(world, civ.id) - civ.military.troops);
   const population = civPopulation(world, civ.id);
   const consumed = population * FOOD_PER_CAPITA;
 

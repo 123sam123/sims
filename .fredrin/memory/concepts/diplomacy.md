@@ -38,7 +38,11 @@ bonus), war penalty, minus every grievance at
 `100 × weight × 0.5^(age/120yr)`. A 0.8-weight betrayal is −80 fresh, −25 two
 centuries on, −2.5 after six; grievances are pruned only when the decayed
 sting drops below 1 opinion point (~750 yr). `addGrievance` is the single
-write path into that memory — war (later ticket) should use it too.
+write path into that memory — war uses it too (aggression 0.55, conquest 0.6;
+see [[war]]). War/peace relation bookkeeping (`declareWar` / `makePeace` /
+`sueForPeace`, `Relation.warSince`/`warEvent`/`peaceOffer`) lives in this
+module so wars are remembered like every other dealing; the fighting itself is
+`military.ts`, tick stage 5b.
 
 ## Treaties, trade, goods
 

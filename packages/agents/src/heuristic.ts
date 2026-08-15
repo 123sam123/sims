@@ -80,7 +80,24 @@ function propose(world: World, civ: Civ): Directive[] {
     directives.push({ type: "policy", research: 0.3, building: 0.2, rationale: "invest in scholarship" });
   }
 
-  // 6. Name the people once they can record the name.
+  // 6. Sue for peace when a war has bled the people white — the heuristic
+  // never starts wars (the engine's own ignition covers hostility), but it
+  // knows when to stop one.
+  if (civ.military.morale < 0.45) {
+    for (const [idStr, rel] of Object.entries(civ.relations)) {
+      if (rel.atWar) {
+        directives.push({
+          type: "pact",
+          towards: Number(idStr),
+          action: "peace",
+          rationale: "this war costs more than it can return",
+        });
+        break;
+      }
+    }
+  }
+
+  // 7. Name the people once they can record the name.
   if (held.has("writing") && civ.name.startsWith("Band of")) {
     const name = SELF_NAMES[civ.key] ?? civ.key;
     directives.push({ type: "proclaim", name, record: `We name ourselves ${name}.`, rationale: "a people should have a name" });
