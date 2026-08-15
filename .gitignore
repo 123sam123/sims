@@ -16,3 +16,9 @@ out/
 .fredrin/fredrin.cmd
 .fredrin/context-pack.mjs
 .fredrin/hooks/
+.vercel
+.env*
+# Auto-installed agent skills from the Neon marketplace integration (vercel integration add) — machine-local tool state
+.agents/
+.claude/skills/
+skills-lock.json

@@ -1,0 +1,32 @@
+# The simulation daemon as a supervised long-lived process.
+#
+# Installed at /etc/systemd/system/sim-daemon.service by deploy/setup-host.sh.
+# `Restart=always` + `WantedBy=multi-user.target` is what makes the two
+# operational guarantees hold: a crashed daemon comes back in seconds, and a
+# rebooted host resumes the world without a human. Resume correctness itself
+# is the store's contract (snapshot every tick; see packages/runner/src/store.ts).
+#
+# Configuration lives in /etc/sim-daemon.env (never in this unit, never in the
+# repo): DATABASE_URL for the shared read store, DAEMON_FLAGS for the brain
+# transport and budget (defaults to the free deterministic heuristic; switch to
+# the model brain by adding ANTHROPIC_API_KEY there and setting
+# DAEMON_FLAGS="--brain api").
+
+[Unit]
+Description=AI Civilization Earth — simulation daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sim
+WorkingDirectory=/opt/sims
+EnvironmentFile=/etc/sim-daemon.env
+ExecStart=/usr/bin/node --import tsx packages/runner/src/daemon.ts run --db /var/lib/sims/world.db $DAEMON_FLAGS
+Restart=always
+RestartSec=5
+# SIGTERM stops after the tick in flight; give a slow-era tick room to land.
+TimeoutStopSec=90
+
+[Install]
+WantedBy=multi-user.target
