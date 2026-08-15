@@ -7,6 +7,7 @@
  */
 
 export * from "./types.ts";
+export * from "./diplomacy.ts";
 export * from "./events.ts";
 export * from "./rng.ts";
 export * from "./geo-data.ts";
