@@ -8,7 +8,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EventRow from "@/components/EventRow";
-import SiteHeader from "@/components/SiteHeader";
+import MapFocus from "@/components/MapFocus";
+import OverlayPanel from "@/components/OverlayPanel";
 import { getCivPage } from "@/lib/data";
 import { formatNumber, formatYear, settlementHref } from "@/lib/format";
 
@@ -25,9 +26,8 @@ export default async function CivPage({
   if (!civ) notFound();
 
   return (
-    <main className="wrap">
-      <SiteHeader year={civ.year} />
-
+    <OverlayPanel kind="Civilisation">
+      <MapFocus cell={civ.focusCell} />
       <header className="page-head" style={{ borderTopColor: civ.color }}>
         <h1 className="page-title">
           <span className="dot lg" style={{ background: civ.color }} />
@@ -203,6 +203,6 @@ export default async function CivPage({
           )
         )}
       </section>
-    </main>
+    </OverlayPanel>
   );
 }

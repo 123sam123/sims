@@ -233,65 +233,8 @@ function toFeedItem(
 }
 
 /* ------------------------------------------------------------------ *
- * Shared civ chip (header rail)
+ * Feed pages (the client Feed seeds and polls through this)
  * ------------------------------------------------------------------ */
-
-export interface CivChip {
-  key: string;
-  name: string;
-  color: string;
-  alive: boolean;
-  population: number;
-  settlements: number;
-  capabilities: number;
-}
-
-function civChips(world: World): CivChip[] {
-  return world.civs
-    .map((c) => ({
-      key: c.key,
-      name: c.name,
-      color: c.color,
-      alive: c.alive,
-      population: Math.round(civPopulation(world, c.id)),
-      settlements: world.settlements.filter((s) => s.civ === c.id).length,
-      capabilities: c.capabilities.length,
-    }))
-    .sort((a, b) => b.population - a.population);
-}
-
-/* ------------------------------------------------------------------ *
- * Front page — headlines + live stream
- * ------------------------------------------------------------------ */
-
-export interface FeedBundle {
-  year: number;
-  hasHistory: boolean;
-  civs: CivChip[];
-  headlines: FeedItem[];
-  stream: FeedItem[];
-}
-
-export async function getFeedBundle(): Promise<FeedBundle> {
-  const { world, events, close } = await openSource();
-  try {
-    const civs = civById(world);
-    const places = settlementByCell(world);
-    const headlines = (await events.topEvents(CHRONICLE_WEIGHT, 8))
-      .map((e) => toFeedItem(e, civs, places))
-      .sort((a, b) => b.weight - a.weight || b.id - a.id);
-    const stream = (await events.feedPage(40)).map((e) => toFeedItem(e, civs, places));
-    return {
-      year: world.year,
-      hasHistory: stream.length > 0,
-      civs: civChips(world),
-      headlines,
-      stream,
-    };
-  } finally {
-    close();
-  }
-}
 
 /** A page of the feed for polling (`after` = newer) or scroll-back (`before`). */
 export async function getFeedPage(opts: {
@@ -350,6 +293,8 @@ export interface CivPage {
   extinctYear: number | null;
   doctrine: string;
   year: number;
+  /** Where the map should fly when this civ opens: its largest settlement. */
+  focusCell: number | null;
   population: number;
   settlementCount: number;
   territoryCells: number;
@@ -470,7 +415,14 @@ export async function getCivPage(key: string): Promise<CivPage | null> {
       ? CAPABILITY_BY_ID.get(civ.research.target)?.name ?? civ.research.target
       : null;
 
+    const mine = world.settlements.filter((s) => s.civ === civ.id);
+    const biggest = mine.reduce(
+      (a, b) => (a === null || settlementPop(b) > settlementPop(a) ? b : a),
+      null as (typeof mine)[number] | null,
+    );
+
     return {
+      focusCell: biggest?.cell ?? null,
       key: civ.key,
       name: civ.name,
       color: civ.color,
@@ -479,7 +431,7 @@ export async function getCivPage(key: string): Promise<CivPage | null> {
       doctrine: civ.doctrine,
       year: world.year,
       population: Math.round(civPopulation(world, civ.id)),
-      settlementCount: world.settlements.filter((s) => s.civ === civ.id).length,
+      settlementCount: mine.length,
       territoryCells: cells,
       territoryKm2: km2,
       terrains: TERRAIN_KINDS.filter((t) => gates.hasTerrain(t)),
@@ -501,8 +453,7 @@ export async function getCivPage(key: string): Promise<CivPage | null> {
       relations,
       chronicleLines: civ.chronicle,
       notable,
-      settlements: world.settlements
-        .filter((s) => s.civ === civ.id)
+      settlements: mine
         .map((s) => ({
           id: s.id,
           name: s.name,
@@ -529,6 +480,8 @@ export interface SettlementPage {
   pop: number;
   housing: number;
   unrest: string;
+  /** Grid cell the settlement stands on, for the map fly-to. */
+  cell: number;
   coords: string;
   biome: string;
   river: boolean;
@@ -562,6 +515,7 @@ export async function getSettlementPage(id: number): Promise<SettlementPage | nu
       pop,
       housing: s.housing,
       unrest: formatPercent(s.unrest),
+      cell: s.cell,
       coords: cellCoords(s.cell, GRID_W),
       biome: BIOMES[world.grid.biome[s.cell]] ?? "land",
       river: world.grid.river[s.cell] > 0,

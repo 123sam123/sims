@@ -7,7 +7,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EventRow from "@/components/EventRow";
-import SiteHeader from "@/components/SiteHeader";
+import MapFocus from "@/components/MapFocus";
+import OverlayPanel from "@/components/OverlayPanel";
 import { getEventPage } from "@/lib/data";
 import {
   civHref,
@@ -35,9 +36,8 @@ export default async function EventPage({
   const deeper = ancestry.filter((a) => !immediate.has(a.id));
 
   return (
-    <main className="wrap">
-      <SiteHeader year={item.year} />
-
+    <OverlayPanel kind="Event">
+      <MapFocus cell={item.cell} />
       <header
         className={`event-head tone-${kindTone(item.kind)} band-${weightBand(
           item.weight,
@@ -102,9 +102,9 @@ export default async function EventPage({
 
       <p className="foot">
         <Link href="/" className="backlink">
-          ← Back to the feed
+          ← Back to the map
         </Link>
       </p>
-    </main>
+    </OverlayPanel>
   );
 }

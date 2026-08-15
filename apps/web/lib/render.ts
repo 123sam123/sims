@@ -9,6 +9,13 @@
  * north-west hillshade of the elevation field; rivers are laid over everything;
  * settlements are drawn on top after the upscale — as dots that scale with
  * population when far out, and as procedurally drawn buildings when close in.
+ *
+ * The view is continuous: `centerX`/`centerY` are fractional grid coordinates
+ * and `cellsAcross` is one float scalar, so pan and zoom are smooth rather than
+ * stepped. The full grid is painted once per (world, layer) into a cached 1×
+ * canvas; each frame only blits the visible window out of that cache, which is
+ * what keeps a 60fps drag cheap. The world wraps east–west; beyond the poles
+ * the frame letterboxes into void.
  */
 
 import { availableMaterials, MATERIALS } from "./materials";
@@ -17,20 +24,22 @@ import type { SettlementInfo, WorldData } from "./payload";
 export type Layer = "biome" | "relief" | "temp" | "territory";
 
 export interface View {
-  /** Grid cell the view is centred on. */
+  /** Grid coordinate the view is centred on (fractional; x wraps mod W). */
   centerX: number;
   centerY: number;
-  /** Width of the view in grid cells. Smaller = closer in. */
+  /** Width of the view in grid cells. One continuous scalar; smaller = closer. */
   cellsAcross: number;
   layer: Layer;
 }
 
-/** Named zoom stops, in cells across. Planet shows the whole 360-wide grid. */
-export const ZOOM = { planet: 360, region: 72, locality: 16 } as const;
+/** The closest the view can zoom, in cells across. */
+export const MIN_CELLS_ACROSS = 8;
 /** At or below this width, settlements are drawn as buildings, not dots. */
 const LOCALITY_MAX = 24;
 /** At or below this width, terrain gets fertility texture. */
 const STIPPLE_MAX = 130;
+/** What the frame shows past the poles. */
+const VOID_COLOR = "#04060a";
 
 export const BIOME_NAMES = [
   "ocean",
@@ -111,6 +120,8 @@ function civRgb(hex: string): [number, number, number] {
 }
 
 export interface Window {
+  /** Fractional window origin in grid coordinates. `y0` may run past the
+   *  poles (letterboxed); `x0` is unbounded and wraps mod W when sampling. */
   x0: number;
   y0: number;
   across: number;
@@ -119,20 +130,63 @@ export interface Window {
 
 /** The grid window a view maps to, given the display canvas size. */
 export function computeWindow(data: WorldData, view: View, cw: number, ch: number): Window {
-  const W = data.w;
-  const H = data.h;
-  let across = Math.round(clamp(view.cellsAcross, 4, W));
-  if (across >= W) {
-    return { x0: 0, y0: 0, across: W, down: H };
-  }
-  let down = Math.round((across * ch) / cw);
-  down = clamp(down, 3, H);
-  const x0 = Math.round(view.centerX - across / 2);
-  const y0 = clamp(Math.round(view.centerY - down / 2), 0, H - down);
-  return { x0, y0, across, down };
+  const across = clamp(view.cellsAcross, MIN_CELLS_ACROSS, data.w);
+  const down = (across * ch) / cw;
+  return {
+    x0: view.centerX - across / 2,
+    y0: view.centerY - down / 2,
+    across,
+    down,
+  };
 }
 
-/** Screen pixel → grid cell, using the same window the renderer used. */
+/** Normalise a view: wrap `centerX` into [0, W), keep the frame on the planet
+ *  vertically (centred with letterbox once the whole height fits). */
+export function clampView(data: WorldData, view: View, cw: number, ch: number): View {
+  const across = clamp(view.cellsAcross, MIN_CELLS_ACROSS, data.w);
+  const down = (across * ch) / cw;
+  const centerX = ((view.centerX % data.w) + data.w) % data.w;
+  const centerY =
+    down >= data.h ? data.h / 2 : clamp(view.centerY, down / 2, data.h - down / 2);
+  return { ...view, centerX, centerY, cellsAcross: across };
+}
+
+/** Screen pixel → fractional world coordinates (unwrapped, unclamped). */
+export function screenToWorld(
+  data: WorldData,
+  view: View,
+  cw: number,
+  ch: number,
+  sx: number,
+  sy: number,
+): { wx: number; wy: number } {
+  const win = computeWindow(data, view, cw, ch);
+  return { wx: win.x0 + (sx / cw) * win.across, wy: win.y0 + (sy / ch) * win.down };
+}
+
+/** The centre that puts world point (wx, wy) at screen point (sx, sy) for the
+ *  view's scale — the exact inverse of `screenToWorld`. This is what makes a
+ *  drag hold the grabbed point under the pointer and a zoom hold the point
+ *  under the cursor: solve for the centre, never ease toward it. */
+export function centerFor(
+  data: WorldData,
+  view: View,
+  cw: number,
+  ch: number,
+  sx: number,
+  sy: number,
+  wx: number,
+  wy: number,
+): { centerX: number; centerY: number } {
+  const across = clamp(view.cellsAcross, MIN_CELLS_ACROSS, data.w);
+  const down = (across * ch) / cw;
+  return {
+    centerX: wx - (sx / cw - 0.5) * across,
+    centerY: wy - (sy / ch - 0.5) * down,
+  };
+}
+
+/** Screen pixel → grid cell, or null past the poles. */
 export function screenToCell(
   data: WorldData,
   view: View,
@@ -141,29 +195,34 @@ export function screenToCell(
   sx: number,
   sy: number,
 ): number | null {
-  const win = computeWindow(data, view, cw, ch);
-  const gx = (((win.x0 + Math.floor((sx / cw) * win.across)) % data.w) + data.w) % data.w;
-  const gy = clamp(win.y0 + Math.floor((sy / ch) * win.down), 0, data.h - 1);
-  if (gx < 0 || gy < 0) return null;
+  const { wx, wy } = screenToWorld(data, view, cw, ch, sx, sy);
+  if (wy < 0 || wy >= data.h) return null;
+  const gx = Math.floor(((wx % data.w) + data.w) % data.w);
+  const gy = Math.floor(wy);
   return gy * data.w + gx;
 }
 
-/** Cell → screen pixel (centre of the cell), or null if outside the window. */
+/** Cell → screen pixel (centre of the cell), wrap-aware. `margin` (in cells)
+ *  keeps things just outside the frame drawable, so towns don't pop at edges. */
 function cellToScreen(
   data: WorldData,
   win: Window,
   cw: number,
   ch: number,
   cell: number,
+  margin = 0,
 ): { x: number; y: number; cellPx: number } | null {
-  const cx = cell % data.w;
-  const cy = Math.floor(cell / data.w);
-  const dx = (((cx - win.x0) % data.w) + data.w) % data.w;
-  if (dx >= win.across) return null;
+  const cx = (cell % data.w) + 0.5;
+  const cy = Math.floor(cell / data.w) + 0.5;
+  let dx = (((cx - win.x0) % data.w) + data.w) % data.w;
+  if (dx > win.across + margin) {
+    if (dx - data.w < -margin) return null;
+    dx -= data.w;
+  }
   const dy = cy - win.y0;
-  if (dy < 0 || dy >= win.down) return null;
+  if (dy < -margin || dy > win.down + margin) return null;
   const cellPx = cw / win.across;
-  return { x: (dx + 0.5) * cellPx, y: (dy + 0.5) * (ch / win.down), cellPx };
+  return { x: dx * cellPx, y: dy * cellPx, cellPx };
 }
 
 // NW-lit hillshade of the elevation field, wrapping east–west.
@@ -190,26 +249,23 @@ function tempColor(t: number): [number, number, number] {
   return [178 + 70 * k, 200 - 130 * k, 230 - 190 * k];
 }
 
-/** Paint the grid window into a fresh offscreen canvas, one pixel per cell. */
-function paintGrid(data: WorldData, view: View, win: Window): HTMLCanvasElement {
-  const { x0, y0, across, down } = win;
+/** Paint the WHOLE grid into a 1× canvas, one pixel per cell. Heavy (one pass
+ *  over 64,800 cells), so it runs once per (world, layer, stipple) and the
+ *  result is cached — every frame after that is a cheap blit. */
+function paintFullGrid(data: WorldData, layer: Layer, stipple: boolean): HTMLCanvasElement {
   const W = data.w;
   const H = data.h;
   const { biome, elev, river, temp, owner, fertility } = data;
-  const layer = view.layer;
-  const stipple = across <= STIPPLE_MAX;
 
   const off = document.createElement("canvas");
-  off.width = across;
-  off.height = down;
+  off.width = W;
+  off.height = H;
   const octx = off.getContext("2d")!;
-  const img = octx.createImageData(across, down);
+  const img = octx.createImageData(W, H);
   const p = img.data;
 
-  for (let oy = 0; oy < down; oy++) {
-    const gy = clamp(y0 + oy, 0, H - 1);
-    for (let ox = 0; ox < across; ox++) {
-      const gx = (((x0 + ox) % W) + W) % W;
+  for (let gy = 0; gy < H; gy++) {
+    for (let gx = 0; gx < W; gx++) {
       const i = gy * W + gx;
       const bi = biome[i];
       const isLand = bi !== 0;
@@ -324,7 +380,7 @@ function paintGrid(data: WorldData, view: View, win: Window): HTMLCanvasElement 
         bl = bl * (1 - t) + 190 * t;
       }
 
-      const o = (oy * across + ox) * 4;
+      const o = i * 4;
       p[o] = clamp(r, 0, 255);
       p[o + 1] = clamp(g, 0, 255);
       p[o + 2] = clamp(bl, 0, 255);
@@ -333,6 +389,25 @@ function paintGrid(data: WorldData, view: View, win: Window): HTMLCanvasElement 
   }
   octx.putImageData(img, 0, 0);
   return off;
+}
+
+/** One painted grid per (world, layer, stipple), keyed off the data object so a
+ *  fresh payload naturally invalidates and old worlds get collected. */
+const gridCache = new WeakMap<WorldData, Map<string, HTMLCanvasElement>>();
+
+function gridCanvas(data: WorldData, layer: Layer, stipple: boolean): HTMLCanvasElement {
+  let byKey = gridCache.get(data);
+  if (!byKey) {
+    byKey = new Map();
+    gridCache.set(data, byKey);
+  }
+  const key = `${layer}:${stipple ? 1 : 0}`;
+  let canvas = byKey.get(key);
+  if (!canvas) {
+    canvas = paintFullGrid(data, layer, stipple);
+    byKey.set(key, canvas);
+  }
+  return canvas;
 }
 
 /* =================== procedural buildings =================== */
@@ -562,6 +637,29 @@ function drawSettlementDot(
   ctx.stroke();
 }
 
+/** The screen radius a settlement's dot renders at — exported so hit-testing
+ *  (tap a marker to open its page) agrees exactly with what was drawn. */
+export function settlementDotRadius(s: SettlementInfo, cw: number): number {
+  const scale = clamp(cw / 1000, 0.7, 2.2);
+  return clamp(2 + Math.sqrt(s.pop) / 18, 2.4, 16) * scale;
+}
+
+/** Every settlement currently on screen, with its screen position. */
+export function settlementsOnScreen(
+  data: WorldData,
+  view: View,
+  cw: number,
+  ch: number,
+): { s: SettlementInfo; x: number; y: number; cellPx: number }[] {
+  const win = computeWindow(data, view, cw, ch);
+  const out: { s: SettlementInfo; x: number; y: number; cellPx: number }[] = [];
+  for (const s of data.settlements) {
+    const pos = cellToScreen(data, win, cw, ch, s.cell, 2);
+    if (pos) out.push({ s, ...pos });
+  }
+  return out;
+}
+
 /* =================== top-level render =================== */
 
 /** Render a full frame of the world into `canvas` for the given view. */
@@ -570,14 +668,49 @@ export function renderWorld(canvas: HTMLCanvasElement, data: WorldData, view: Vi
   const ch = canvas.height;
   const ctx = canvas.getContext("2d")!;
   const win = computeWindow(data, view, cw, ch);
+  const W = data.w;
+  const H = data.h;
 
-  const off = paintGrid(data, view, win);
   ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0, 0, cw, ch);
-  ctx.drawImage(off, 0, 0, win.across, win.down, 0, 0, cw, ch);
+  ctx.fillStyle = VOID_COLOR;
+  ctx.fillRect(0, 0, cw, ch);
+
+  // Blit the visible window out of the cached full-grid canvas, in one slice
+  // per east–west wrap of the seam. Fractional source rects keep the pan smooth.
+  const stipple = win.across <= STIPPLE_MAX;
+  const grid = gridCanvas(data, view.layer, stipple);
+  const cellPx = cw / win.across;
+  const wyTop = Math.max(win.y0, 0);
+  const wyBottom = Math.min(win.y0 + win.down, H);
+  if (wyBottom > wyTop) {
+    const srcY = wyTop;
+    const srcH = wyBottom - wyTop;
+    const destY = (wyTop - win.y0) * cellPx;
+    const destH = srcH * cellPx;
+    const kFirst = Math.floor(win.x0 / W);
+    const kLast = Math.floor((win.x0 + win.across) / W);
+    for (let k = kFirst; k <= kLast; k++) {
+      const wxStart = Math.max(win.x0, k * W);
+      const wxEnd = Math.min(win.x0 + win.across, (k + 1) * W);
+      if (wxEnd <= wxStart) continue;
+      const srcX = wxStart - k * W;
+      const srcW = wxEnd - wxStart;
+      ctx.drawImage(
+        grid,
+        srcX,
+        srcY,
+        srcW,
+        srcH,
+        (wxStart - win.x0) * cellPx,
+        destY,
+        srcW * cellPx,
+        destH,
+      );
+    }
+  }
 
   const scale = clamp(cw / 1000, 0.7, 2.2);
-  const buildings = view.cellsAcross <= LOCALITY_MAX;
+  const buildings = win.across <= LOCALITY_MAX;
 
   // deposits, faint, only when zoomed in
   if (win.across <= STIPPLE_MAX) {
@@ -598,15 +731,11 @@ export function renderWorld(canvas: HTMLCanvasElement, data: WorldData, view: Vi
 
   // settlements — buildings up close, dots when far out. Draw smaller first so
   // big cities sit on top.
-  const inView: { s: SettlementInfo; x: number; y: number; cellPx: number }[] = [];
-  for (const s of data.settlements) {
-    const pos = cellToScreen(data, win, cw, ch, s.cell);
-    if (pos) inView.push({ s, ...pos });
-  }
+  const inView = settlementsOnScreen(data, view, cw, ch);
   inView.sort((a, b) => a.s.pop - b.s.pop);
 
-  for (const { s, x, y, cellPx } of inView) {
-    if (buildings) drawTown(ctx, x, y, cellPx, s, data);
+  for (const { s, x, y, cellPx: cp } of inView) {
+    if (buildings) drawTown(ctx, x, y, cp, s, data);
     else drawSettlementDot(ctx, x, y, s, data, scale);
   }
 
@@ -616,11 +745,11 @@ export function renderWorld(canvas: HTMLCanvasElement, data: WorldData, view: Vi
     ctx.font = `${Math.round(11 * scale)}px ui-monospace, monospace`;
     ctx.textBaseline = "bottom";
     ctx.textAlign = "center";
-    for (const { s, x, y, cellPx } of inView) {
+    for (const { s, x, y, cellPx: cp } of inView) {
       const civ = data.civById.get(s.civ);
       const named = s.name && s.name !== "camp" && s.name !== "settlement";
       const label = `${named ? s.name : (civ?.name ?? "settlement")} · ${s.pop.toLocaleString()}`;
-      const ly = y - Math.max(cellPx * 1.5, 26);
+      const ly = y - Math.max(cp * 1.5, 26);
       ctx.lineWidth = 3 * scale;
       ctx.strokeStyle = "rgba(0,0,0,0.8)";
       ctx.strokeText(label, x, ly);

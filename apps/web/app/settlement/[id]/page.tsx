@@ -6,7 +6,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EventRow from "@/components/EventRow";
-import SiteHeader from "@/components/SiteHeader";
+import MapFocus from "@/components/MapFocus";
+import OverlayPanel from "@/components/OverlayPanel";
 import Sparkline from "@/components/Sparkline";
 import { getSettlementPage } from "@/lib/data";
 import { civHref, formatNumber, formatYear } from "@/lib/format";
@@ -25,9 +26,8 @@ export default async function SettlementPage({
   if (!s) notFound();
 
   return (
-    <main className="wrap">
-      <SiteHeader year={s.year} />
-
+    <OverlayPanel kind="Settlement">
+      <MapFocus cell={s.cell} />
       <header
         className="page-head"
         style={{ borderTopColor: s.civ?.color ?? "var(--line)" }}
@@ -93,6 +93,6 @@ export default async function SettlementPage({
           </div>
         )}
       </section>
-    </main>
+    </OverlayPanel>
   );
 }
