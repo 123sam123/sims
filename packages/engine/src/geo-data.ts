@@ -96,7 +96,10 @@ export type ResourceKind =
   | "oil"
   | "gold"
   | "silver"
-  | "uranium";
+  | "uranium"
+  | "bauxite"
+  | "silica"
+  | "rare_earth";
 
 /**
  * Real orefields. `richness` is relative abundance, `depth` gates which
@@ -173,6 +176,31 @@ export const DEPOSITS: {
   { kind: "uranium", name: "Shu-Sarysu", at: [44, 68], richness: 0.9, depth: 0.75 },
   { kind: "uranium", name: "Arlit", at: [18, 7], richness: 0.6, depth: 0.7 },
   { kind: "uranium", name: "Erzgebirge Pitchblende", at: [50, 12], richness: 0.4, depth: 0.7 },
+  // Bauxite — lateritic and shallow, but red dirt is only ore once you can
+  // run current through it. Depth is discovery; use is gated by capability.
+  { kind: "bauxite", name: "Weipa", at: [-13, 142], richness: 1.0, depth: 0.3 },
+  { kind: "bauxite", name: "Boke", at: [11, -14], richness: 1.0, depth: 0.3 },
+  { kind: "bauxite", name: "Trombetas", at: [-2, -56], richness: 0.8, depth: 0.3 },
+  { kind: "bauxite", name: "Jamaica", at: [18, -77], richness: 0.7, depth: 0.3 },
+  { kind: "bauxite", name: "Darling Range", at: [-33, 117], richness: 0.7, depth: 0.3 },
+  { kind: "bauxite", name: "Les Baux", at: [44, 5], richness: 0.4, depth: 0.3 },
+  { kind: "bauxite", name: "Eastern Ghats", at: [19, 83], richness: 0.7, depth: 0.3 },
+  { kind: "bauxite", name: "Dak Nong", at: [12, 108], richness: 0.6, depth: 0.35 },
+  // Silica — high-purity quartz and glass sand. Common enough that most
+  // continents hold some; the wall is the chain that consumes it, not the sand.
+  { kind: "silica", name: "Spruce Pine", at: [36, -82], richness: 1.0, depth: 0.4 },
+  { kind: "silica", name: "Fontainebleau", at: [48, 3], richness: 0.8, depth: 0.35 },
+  { kind: "silica", name: "Lochaline", at: [57, -6], richness: 0.6, depth: 0.4 },
+  { kind: "silica", name: "Cape Flattery", at: [-15, 145], richness: 0.9, depth: 0.35 },
+  { kind: "silica", name: "Seto", at: [35, 137], richness: 0.5, depth: 0.35 },
+  { kind: "silica", name: "Shankargarh", at: [25, 82], richness: 0.6, depth: 0.35 },
+  { kind: "silica", name: "Philippi Dunes", at: [-34, 19], richness: 0.5, depth: 0.35 },
+  // Rare earths — nobody recognises this ore without serious chemistry.
+  { kind: "rare_earth", name: "Bayan Obo", at: [42, 110], richness: 1.0, depth: 0.7 },
+  { kind: "rare_earth", name: "Mountain Pass", at: [35, -115], richness: 0.7, depth: 0.7 },
+  { kind: "rare_earth", name: "Mount Weld", at: [-29, 122], richness: 0.8, depth: 0.75 },
+  { kind: "rare_earth", name: "Kvanefjeld", at: [61, -46], richness: 0.6, depth: 0.8 },
+  { kind: "rare_earth", name: "Serra Verde", at: [-14, -48], richness: 0.5, depth: 0.65 },
 ];
 
 /**

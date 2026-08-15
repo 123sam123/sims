@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  CAPABILITIES,
   CAPABILITY_BY_ID,
   STARTING_CAPABILITIES,
   blockedBecause,
@@ -274,4 +275,26 @@ test("research is deterministic for a given seed", () => {
     b.events.map((e) => e.text),
     "and the same discoveries and losses, in the same order",
   );
+});
+
+/* ================================================================== *
+ * The open frontier, driven through the real research step
+ * ================================================================== */
+
+test("a civ holding the whole authored tree keeps discovering on the frontier", () => {
+  const world = generateWorld(SEED);
+  const civ = world.civs[0];
+  setCapabilities(world, 0, CAPABILITIES.map((c) => c.id));
+  scaleCohorts(world, 0, 5000); // an industrial-scale population of scholars
+  civ.policy.research = 0.6;
+
+  for (let y = 0; y < 10; y++) {
+    world.year = y;
+    stepResearch(world, civ);
+  }
+
+  assert.ok(civ.capabilities.includes("frontier_1"), "the frontier opened and was crossed");
+  assert.ok(civ.capabilities.includes("frontier_2"), "and it kept going past the first tier");
+  assert.ok(civ.holders.frontier_1, "frontier tiers get the same holder bookkeeping");
+  assert.ok(civ.holders.frontier_1.written, "a literate civ records what it learns");
 });
