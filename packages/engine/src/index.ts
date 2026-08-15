@@ -16,6 +16,8 @@ export * from "./military.ts";
 export * from "./production.ts";
 export * from "./pop.ts";
 export * from "./settlement.ts";
+export * from "./disease.ts";
+export * from "./environment.ts";
 export * from "./research.ts";
 export * from "./projects.ts";
 export * from "./tick.ts";

@@ -118,6 +118,14 @@ const KIND_META: Record<EventKind, KindMeta> = {
     defaultMagnitude: 0.5,
     template: (f) => `${civOf(f)} and ${otherOf(f)} met in battle at ${placeOf(f)}.`,
   },
+  // A province breaking away — an empire visibly losing its grip. Sits just
+  // below war: the heaviest secession still matters less than a great war.
+  secession: {
+    min: 0.55,
+    max: 0.85,
+    defaultMagnitude: 0.5,
+    template: (f) => `${placeOf(f)} rose against ${civOf(f)} and broke away.`,
+  },
   // Discovery spans a spectrum: a shallow copper seam is minor; ironworking is
   // an age. Magnitude, supplied by the caller, decides where it lands.
   discovery: {
@@ -131,6 +139,14 @@ const KIND_META: Record<EventKind, KindMeta> = {
     max: 0.75,
     defaultMagnitude: 0.45,
     template: (f) => `Disaster struck ${civOf(f)}.`,
+  },
+  // A finite deposit worked to nothing. Usually local news; occasionally — the
+  // last tin in reach — the quiet start of an age ending.
+  depletion: {
+    min: 0.3,
+    max: 0.6,
+    defaultMagnitude: 0.4,
+    template: (f) => `${civOf(f)} worked the last ore from ${subjectOf(f)}.`,
   },
   // A settlement is born or a frontier pushed — locally momentous, globally small.
   founding: {
@@ -150,6 +166,22 @@ const KIND_META: Record<EventKind, KindMeta> = {
     max: 0.5,
     defaultMagnitude: 0.3,
     template: (f) => `${civOf(f)} opened trade with ${otherOf(f)}.`,
+  },
+  // Trouble simmering at the empire's rim — the warning a secession later
+  // points back at.
+  unrest: {
+    min: 0.25,
+    max: 0.5,
+    defaultMagnitude: 0.4,
+    template: (f) => `Unrest simmered in ${placeOf(f)}, far from ${civOf(f)}'s seat of power.`,
+  },
+  // Soils wearing thin from long use — slow, located, and reversible only by
+  // leaving the land alone.
+  degradation: {
+    min: 0.25,
+    max: 0.55,
+    defaultMagnitude: 0.4,
+    template: (f) => `The soils around ${placeOf(f)} grew thin from long use.`,
   },
   decision: {
     min: 0.1,

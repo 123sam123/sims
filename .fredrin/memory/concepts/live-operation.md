@@ -5,9 +5,11 @@ world complexity. Implemented in `packages/runner/src/daemon.ts` (the loop and
 pacing), `packages/runner/src/attention.ts` (consequence scoring and the
 budget) and `packages/runner/src/llm.ts` (metered model transports); the spend
 ledger and snapshot pruning live on the store. Entry point: `pnpm daemon`
-(plus `pnpm daemon report` and `pnpm daemon budget --daily-usd N`). **This does
-not run on Vercel** — it is one long-lived process for a VM or container; the
-website only reads the SQLite file the daemon writes (see [[tick]]).
+(plus `pnpm daemon report`, `pnpm daemon budget --daily-usd N` and
+`pnpm daemon restore`). **This does not run on Vercel** — it is one long-lived
+process for a VM or container; the website reads the SQLite file locally in
+dev, and in production the shared Postgres replica the daemon publishes (see
+[[tick]] and *Deployment* below).
 
 ## Time dilation — pace follows event density
 
@@ -78,3 +80,25 @@ On startup the daemon prunes logged events at or above the loaded snapshot's
 the id-keyed dedupe keep an abandoned (differently re-decided) timeline's
 text. Allocator state, decision counters and CLI sessions persist in meta, so
 a restart keeps a warm bar and warm caches.
+
+## Deployment — the site reads a replica, never the host
+
+Deployed shape (live since 2026-08; runbook in `deploy/README.md`, costs in
+`docs/operating-cost.md`): the daemon runs supervised (systemd,
+`Restart=always`, enabled at boot) on a small Lightsail VM; the site runs on
+Vercel; Neon Postgres is the store both reach. The split of authority is the
+load-bearing decision: **the VM's SQLite stays authoritative** (resume
+semantics untouched), and Postgres is a **read replica**
+(`packages/runner/src/publish.ts` writes; `apps/web/lib/remote.ts` reads,
+enabled by `DATABASE_URL`). The publisher runs off the tick's critical path:
+events are re-read from the local store by id cursor (so an outage self-heals
+— the replica catches up by `eventsAfter`), the ~2.6 MB latest-snapshot row is
+throttled to one write per 30 s of wall clock, census keeps keyframe years
+only (mirroring `pruneSnapshots`), and the daemon's startup resume guard is
+applied to the remote log too. Every layer degrades rather than errors:
+remote down → the world keeps ticking; daemon down → the site serves the last
+published snapshot; replica empty → the site renders a generated year-0
+Earth. A lost VM is rebuilt from the replica with `pnpm daemon restore`
+(loses ≤ one publish interval). The public deployment runs
+`--brain heuristic`; switching on the model mind is an env edit on the host
+(`/etc/sim-daemon.env`), not a redeploy.

@@ -2,10 +2,12 @@
  * Server-side: get the current world and pack it into the wire payload.
  *
  * Where the world comes from, in order:
- *   1. the live store — a `node:sqlite` file the runner writes as it ticks. Its
+ *   1. the shared Postgres replica, when `DATABASE_URL` is set — the deployed
+ *      site's path; the daemon on the sim host publishes into it (`remote.ts`).
+ *   2. the live store — a `node:sqlite` file the runner writes as it ticks. Its
  *      most-advanced snapshot is the present. This is the path that makes the
- *      map update as the simulation advances.
- *   2. failing that, a fresh `generateWorld(seed)` at year 0 — so the site still
+ *      map update as the simulation advances in local dev.
+ *   3. failing that, a fresh `generateWorld(seed)` at year 0 — so the site still
  *      renders a recognisable Earth with nothing running behind it (e.g. on a
  *      host that carries the app but not the tick loop).
  *
@@ -26,6 +28,12 @@ import {
   type World,
 } from "@sim/engine";
 import type { CivInfo, DepositInfo, MapPayload, SettlementInfo } from "./payload";
+import {
+  lastKnownRemoteWorld,
+  loadRemoteWorld,
+  remoteEnabled,
+  remoteSourceKey,
+} from "./remote";
 
 const SEED = Number(process.env.WORLD_SEED ?? 1);
 const DB_PATH =
@@ -140,6 +148,30 @@ function sourceKey(): string {
 
 /** The current world as a wire payload, cached until the store changes. */
 export async function getMapPayload(): Promise<MapPayload> {
+  if (remoteEnabled()) {
+    try {
+      const remoteKey = await remoteSourceKey();
+      if (remoteKey !== null) {
+        if (cache && cache.key === remoteKey) return cache.payload;
+        const world = await loadRemoteWorld(remoteKey);
+        if (world) {
+          const payload = buildPayload(world);
+          cache = { key: remoteKey, payload };
+          return payload;
+        }
+      }
+      // Reachable but never published: fall through to sqlite/generated.
+    } catch {
+      // Store unreachable: keep serving what this instance last built.
+      if (cache) return cache.payload;
+      const last = lastKnownRemoteWorld();
+      if (last) {
+        cache = { key: "pg:last-known", payload: buildPayload(last) };
+        return cache.payload;
+      }
+    }
+  }
+
   const key = sourceKey();
   if (cache && cache.key === key) return cache.payload;
   const world = await loadWorld();

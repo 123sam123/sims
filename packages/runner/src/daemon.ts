@@ -33,10 +33,13 @@
  * snapshots and never runs the loop.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   civPopulation,
+  deserializeWorld,
+  type SerializedWorld,
   tickWorld,
   type World,
   type WorldEvent,
@@ -65,6 +68,7 @@ import {
   isUsageLimitError,
   type MeteredCall,
 } from "./llm.ts";
+import { RemotePublisher } from "./publish.ts";
 import { SNAPSHOT_INTERVAL, Store } from "./store.ts";
 
 /* ------------------------------------------------------------------ *
@@ -428,6 +432,19 @@ async function cmdRun(flags: Record<string, string | boolean>): Promise<void> {
   process.on("SIGINT", () => stop("SIGINT"));
   process.on("SIGTERM", () => stop("SIGTERM"));
 
+  // Shared read store for the website (see publish.ts). Enabled by
+  // DATABASE_URL; a bad URL fails here, at boot, not mid-run.
+  let publisher: RemotePublisher | null = null;
+  let pool: { end(): Promise<void> } | null = null;
+  if (process.env.DATABASE_URL) {
+    const { Pool } = await import("pg");
+    const pgPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+    pool = pgPool;
+    publisher = new RemotePublisher(pgPool, store, { log });
+    await publisher.init(world);
+    log(`Publishing to remote store (snapshot + events + census).`);
+  }
+
   log(
     `Daemon on ${dbPath} from year ${world.year} — brain ${transport}` +
       `${transport === "heuristic" ? "" : ` (${model})`}, budget $${dailyUsd().toFixed(2)}/day.`,
@@ -447,6 +464,7 @@ async function cmdRun(flags: Record<string, string | boolean>): Promise<void> {
       store.setMeta("daemon.sessions", JSON.stringify(sessions));
       store.setMeta("daemon.allocator", JSON.stringify(allocator.saveState()));
       store.setMeta("daemon.counters", JSON.stringify(counters));
+      publisher?.onTick(w);
     },
     statusExtra: () => {
       const stats = allocator.stats();
@@ -461,6 +479,15 @@ async function cmdRun(flags: Record<string, string | boolean>): Promise<void> {
     hooks: { log },
   });
 
+  if (publisher) {
+    // Final flush so the site's replica ends exactly where the run stopped.
+    try {
+      await publisher.close(world);
+    } catch {
+      // remote down at shutdown — the next start's pump catches it up
+    }
+    await pool?.end();
+  }
   store.close();
   log(`Stopped at year ${result.toYear} (${result.ticks} ticks this run).`);
 }
@@ -546,6 +573,34 @@ function cmdReport(flags: Record<string, string | boolean>): void {
   process.stdout.write(`${lines.join("\n")}\n`);
 }
 
+/**
+ * Rebuild a local world DB from the remote replica's latest published
+ * snapshot — the recovery path when the sim host is lost entirely. Loses at
+ * most one publish interval of history. The daemon's startup resume guard
+ * then prunes remote events past the restored snapshot's `nextEventId`, so
+ * the replica's log and the restored timeline stay consistent.
+ */
+async function cmdRestore(flags: Record<string, string | boolean>): Promise<void> {
+  const dbPath = asString(flags.db) ?? DEFAULT_DB;
+  if (!process.env.DATABASE_URL) fail("DATABASE_URL is not set");
+  if (existsSync(dbPath)) fail(`${dbPath} already exists — refusing to overwrite a world`);
+
+  const { Pool } = await import("pg");
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+  const r = await pool.query("SELECT year, world FROM world_latest WHERE id = 1");
+  await pool.end();
+  if (r.rows.length === 0) fail("the remote store has no published world to restore from");
+
+  const world = deserializeWorld(
+    JSON.parse((r.rows[0] as { world: string }).world) as SerializedWorld,
+  );
+  mkdirSync(dirname(dbPath), { recursive: true });
+  const store = new Store(dbPath);
+  store.saveSnapshot(world);
+  store.close();
+  process.stdout.write(`Restored world at year ${world.year} into ${dbPath}.\n`);
+}
+
 function cmdBudget(flags: Record<string, string | boolean>): void {
   const dbPath = asString(flags.db) ?? DEFAULT_DB;
   if (!existsSync(dbPath)) fail(`no world at ${dbPath}`);
@@ -623,11 +678,15 @@ async function main(): Promise<void> {
     case "budget":
       cmdBudget(flags);
       break;
+    case "restore":
+      await cmdRestore(flags);
+      break;
     default:
       process.stderr.write(
         "usage: pnpm daemon [run] [--db PATH] [--brain auto|api|cli|heuristic] [--model ID] [--daily-usd N] [--floor-ms N] [--until-year Y]\n" +
           "       pnpm daemon report [--db PATH]\n" +
-          "       pnpm daemon budget [--daily-usd N] [--db PATH]\n",
+          "       pnpm daemon budget [--daily-usd N] [--db PATH]\n" +
+          "       pnpm daemon restore [--db PATH]   (rebuild a lost world DB from the remote replica)\n",
       );
       process.exit(command === "help" || command === "--help" ? 0 : 1);
   }

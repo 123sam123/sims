@@ -456,6 +456,7 @@ export function generateWorld(seed: number): World {
     biome: new Uint8Array(CELL_COUNT),
     owner: new Int16Array(CELL_COUNT).fill(-1),
     settlement: new Int16Array(CELL_COUNT).fill(-1),
+    soil: new Float32Array(CELL_COUNT).fill(1),
   };
 
   rasteriseLand(grid);

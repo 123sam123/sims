@@ -22,7 +22,12 @@
  *      camp toward better foraging instead of founding anything.
  *   5. Saturated settlements found a colony at the best nearby site, or send
  *      people to a sibling with room.
- *   6. A settlement whose local food supply collapses for `ABANDON_YEARS`
+ *   6. Overextension: settlements far from the capital, measured against an
+ *      administrative reach that grows with governance capabilities, accrue
+ *      unrest — and a settlement that boils over secedes, taking its people
+ *      and its land out of the civilisation. Corruption and revolt are the
+ *      failure mode of empire here, not a hard territory cap.
+ *   7. A settlement whose local food supply collapses for `ABANDON_YEARS`
  *      running — or that simply empties out — is abandoned and its land freed.
  *
  * Determinism: the only stochastic input is a per-civ-per-year stream from
@@ -80,6 +85,40 @@ export const TERRITORY_RADIUS_KM = 480;
 /** Administrative reach from the civ's largest settlement. Nothing is
  *  claimed or founded beyond it — expansion is NOT free. */
 export const ADMIN_REACH_KM = 1900;
+/** Governance capabilities stretch how far a capital can administer: writing
+ *  carries orders, roads carry them faster, law and coin make distant deputies
+ *  behave. Each entry is a fractional bonus on `ADMIN_REACH_KM`. */
+export const ADMIN_REACH_BONUS: Record<string, number> = {
+  writing: 0.35,
+  roads: 0.3,
+  law_code: 0.25,
+  currency: 0.15,
+};
+
+/* --- Overextension: unrest and secession --------------------------- *
+ * Reach is not a wall; it is where governance thins out. A settlement
+ * past `UNREST_STRAIN_FLOOR` of its civ's reach accrues unrest year on
+ * year, a hungry one accrues more, and a settlement that boils over can
+ * secede — taking its people and its catchment out of the civilisation.
+ * This is the overextension brake: the price of empire is paid at the
+ * rim, in revolt, with the cause written into the event log. */
+
+/** Strain (distance / reach) below which the capital's grip is comfortable. */
+export const UNREST_STRAIN_FLOOR = 0.55;
+/** Unrest accrued per year per unit of strain beyond the floor. */
+export const UNREST_STRAIN_RATE = 0.15;
+/** Extra unrest per year at total local food collapse — hunger radicalises. */
+export const UNREST_HUNGER_RATE = 0.03;
+/** How much a fully legitimate government damps unrest accrual. */
+export const UNREST_LEGITIMACY_RELIEF = 0.5;
+/** Unrest that fades per year wherever grievance is not actively fed. */
+export const UNREST_DECAY = 0.02;
+/** Crossing this upward puts a standing unrest report in the log. */
+export const UNREST_EVENT_THRESHOLD = 0.6;
+/** Falling back below this clears the standing report (hysteresis). */
+export const UNREST_CLEAR_THRESHOLD = 0.4;
+/** At boiling point (unrest ~1), the yearly chance the place actually rises. */
+export const SECESSION_CHANCE = 0.12;
 /** A frontier cell is claimed when reach × distance-decay clears this. A civ
  *  controls its whole reachable region — the good land and the marginal land
  *  between its settlements — not only the fertile cells. Its cities then visibly
@@ -171,6 +210,8 @@ export interface SettlementReport {
   founded: number[];
   /** Ids of settlements abandoned this year. */
   abandoned: number[];
+  /** Ids of settlements that seceded from their civilisation this year. */
+  seceded: number[];
   /** Ids of camps that relocated this year. */
   relocated: number[];
   /** People moved between existing settlements this year. */
@@ -180,13 +221,29 @@ export interface SettlementReport {
 }
 
 /**
+ * How far a civilisation can administer from its capital, in km: the base
+ * reach stretched by whichever governance capabilities it holds. This is what
+ * territory claims, colony founding and the overextension strain are all
+ * measured against — one definition, so the brake and the expansion agree.
+ */
+export function adminReach(held: ReadonlySet<string>): number {
+  let bonus = 0;
+  for (const [cap, b] of Object.entries(ADMIN_REACH_BONUS)) {
+    if (held.has(cap)) bonus += b;
+  }
+  return ADMIN_REACH_KM * (1 + bonus);
+}
+
+/**
  * Food a single cell can feed, in people, for the civ that works it.
  * Farming lifts both the per-cell yield and (via `FARM_CAPACITY_PER_CELL`)
  * how many people the land will hold at all.
  */
 export function cellFoodCapacity(grid: Grid, c: number, farming: boolean): number {
   const perCell = farming ? FARM_CAPACITY_PER_CELL : FORAGE_CAPACITY_PER_CELL;
-  return grid.fertility[c] * perCell;
+  // Worn soil carries fewer people: `soil` starts pristine at 1 and is moved
+  // only by the environment step, so long-settled land really does thin out.
+  return grid.fertility[c] * grid.soil[c] * perCell;
 }
 
 /**
@@ -226,6 +283,7 @@ export function stepSettlements(world: World): SettlementReport {
   const report: SettlementReport = {
     founded: [],
     abandoned: [],
+    seceded: [],
     relocated: [],
     migrated: 0,
     claimed: 0,
@@ -248,7 +306,8 @@ export function stepSettlements(world: World): SettlementReport {
     if (!sites || sites.length === 0) continue;
     const capital = largestSettlement(sites);
     const cells = owned.get(civ.id) ?? [];
-    report.claimed += expandTerritory(grid, civ.id, cells, sites, capital);
+    const reach = adminReach(heldByCiv.get(civ.id) ?? new Set());
+    report.claimed += expandTerritory(grid, civ.id, cells, sites, capital, reach);
     owned.set(civ.id, cells);
   }
 
@@ -300,7 +359,7 @@ export function stepSettlements(world: World): SettlementReport {
       if (pop < FOUND_MIN_POP || saturation < FOUND_SATURATION) continue;
       if (!rng.chance(FOUND_ATTEMPT_CHANCE)) continue;
 
-      const site = bestSite(world, civ.id, s, capital, rng);
+      const site = bestSite(world, civ.id, s, capital, adminReach(held), rng);
       if (site >= 0) {
         founded.push(foundColony(world, civ, s, site));
       } else {
@@ -314,9 +373,18 @@ export function stepSettlements(world: World): SettlementReport {
     pushEvent(world, s.civ, s.cell, 0.4, `A new settlement was founded.`);
   }
 
-  // --- 6. Abandonment: freed land and dispersed survivors -----------------
+  // --- 6. Overextension: unrest at the rim, secession past boiling --------
+  const seceded = stepUnrest(world, heldByCiv, report);
+
+  // --- 7. Abandonment and secession: freed land, removed settlements ------
   const survivors: Settlement[] = [];
   for (const s of world.settlements) {
+    if (seceded.has(s.id)) {
+      // The breakaway takes its people and its land out of the civilisation:
+      // no dispersal to siblings — that is precisely what the civ lost.
+      freeLand(world, s);
+      continue;
+    }
     const dead = settlementPop(s) <= 0;
     const starved = (s.leanYears ?? 0) >= ABANDON_YEARS;
     if (dead || starved) {
@@ -326,9 +394,96 @@ export function stepSettlements(world: World): SettlementReport {
       survivors.push(s);
     }
   }
-  if (report.abandoned.length > 0) world.settlements = survivors;
+  if (report.abandoned.length > 0 || seceded.size > 0) world.settlements = survivors;
 
   return report;
+}
+
+/**
+ * The overextension brake. For every settled civilisation: measure each
+ * settlement's strain — distance from the capital over the civ's
+ * administrative reach — and accrue unrest where governance has thinned out
+ * (faster when the place is also hungry, damped by a legitimate government).
+ * Crossing the reporting threshold puts a standing `unrest` event in the log;
+ * a settlement at boiling point can secede, which emits a `secession` event
+ * causally linked to that report. Returns the ids that seceded this year;
+ * the caller frees their land and removes them.
+ */
+function stepUnrest(
+  world: World,
+  heldByCiv: Map<number, Set<string>>,
+  report: SettlementReport,
+): Set<number> {
+  const seceded = new Set<number>();
+  const byCiv = groupSettlements(world);
+
+  for (const civ of world.civs) {
+    if (!civ.alive) continue;
+    if (!(heldByCiv.get(civ.id)?.has("settlement") ?? false)) continue;
+    const sites = byCiv.get(civ.id);
+    if (!sites || sites.length === 0) continue;
+
+    const capital = largestSettlement(sites);
+    const reach = adminReach(heldByCiv.get(civ.id) ?? new Set());
+    const damping = 1 - UNREST_LEGITIMACY_RELIEF * clamp(civ.government.legitimacy, 0, 1);
+    const rng = new Rng(hashSeed("unrest", civ.id, world.year));
+
+    for (const s of sites) {
+      const strain = cellDistance(s.cell, capital.cell) / reach;
+      const hunger = Math.max(0, 1 - Math.min(1, s.lastHarvest));
+      const accrual =
+        (UNREST_STRAIN_RATE * Math.max(0, strain - UNREST_STRAIN_FLOOR) +
+          UNREST_HUNGER_RATE * hunger) *
+        damping;
+      const before = s.unrest;
+      s.unrest = clamp(before + accrual - UNREST_DECAY, 0, 1);
+
+      if (before < UNREST_EVENT_THRESHOLD && s.unrest >= UNREST_EVENT_THRESHOLD) {
+        const e = emit(world, {
+          kind: "unrest",
+          civ: civ.id,
+          cell: s.cell,
+          magnitude: clamp(strain, 0, 1),
+          fields: { place: s.name, civ: civ.name },
+        });
+        s.unrestEventId = e.id;
+      } else if (s.unrest < UNREST_CLEAR_THRESHOLD) {
+        s.unrestEventId = undefined;
+      }
+
+      // The capital never secedes from itself; everywhere else, a settlement
+      // at boiling point may actually rise this year.
+      if (s !== capital && s.unrest >= 1 && rng.chance(SECESSION_CHANCE)) {
+        const civPop = Math.max(1, sites.reduce((t, x) => t + settlementPop(x), 0));
+        emit(world, {
+          kind: "secession",
+          civ: civ.id,
+          cell: s.cell,
+          magnitude: clamp(settlementPop(s) / civPop, 0, 1),
+          fields: { place: s.name, civ: civ.name },
+          causedBy: s.unrestEventId !== undefined ? [s.unrestEventId] : [],
+        });
+        seceded.add(s.id);
+        report.seceded.push(s.id);
+      }
+    }
+  }
+  return seceded;
+}
+
+/** Free a settlement's catchment and its own cell — ownership and assignment
+ *  both — without touching its people. Shared by secession (people leave with
+ *  the land) and abandonment (which disperses them first). */
+function freeLand(world: World, s: Settlement): void {
+  const grid = world.grid;
+  for (let c = 0; c < grid.settlement.length; c++) {
+    if (grid.settlement[c] === s.id) {
+      grid.settlement[c] = -1;
+      grid.owner[c] = -1;
+    }
+  }
+  if (grid.owner[s.cell] === s.civ) grid.owner[s.cell] = -1;
+  if (grid.settlement[s.cell] === s.id) grid.settlement[s.cell] = -1;
 }
 
 /** People a site shelters before any dwelling is built — a camp, caves, tents.
@@ -399,6 +554,7 @@ function expandTerritory(
   ownedCells: number[],
   sites: Settlement[],
   capital: Settlement,
+  reachKm: number,
 ): number {
   const candidates = new Set<number>();
   for (const c of ownedCells) {
@@ -408,7 +564,7 @@ function expandTerritory(
   }
   let claimed = 0;
   for (const c of candidates) {
-    const reach = 1 - cellDistance(c, capital.cell) / ADMIN_REACH_KM;
+    const reach = 1 - cellDistance(c, capital.cell) / reachKm;
     if (reach <= 0) continue;
     let nearest = Infinity;
     for (const s of sites) {
@@ -515,6 +671,7 @@ function bestSite(
   civId: number,
   parent: Settlement,
   capital: Settlement,
+  reachKm: number,
   rng: Rng,
 ): number {
   const grid = world.grid;
@@ -548,7 +705,7 @@ function bestSite(
       const o = grid.owner[c];
       if (o !== -1 && o !== civId) continue;
       if (cellDistance(c, parent.cell) > FOUND_SEARCH_RADIUS_KM) continue;
-      if (1 - cellDistance(c, capital.cell) / ADMIN_REACH_KM <= 0) continue;
+      if (1 - cellDistance(c, capital.cell) / reachKm <= 0) continue;
 
       let nd2 = Infinity;
       for (const sc of near) {
@@ -648,7 +805,14 @@ export function foundDirectedColony(world: World, civId: number): Settlement | n
 
   const capital = largestSettlement(sites);
   const rng = new Rng(hashSeed("found-directed", civId, world.year));
-  const cell = bestSite(world, civId, capital, capital, rng);
+  const cell = bestSite(
+    world,
+    civId,
+    capital,
+    capital,
+    adminReach(new Set(civ.capabilities)),
+    rng,
+  );
   if (cell < 0) return null;
 
   const colony = foundColony(world, civ, capital, cell);
@@ -746,7 +910,6 @@ function relocateCamp(grid: Grid, s: Settlement, civId: number): boolean {
  * caller.
  */
 function abandon(world: World, s: Settlement, byCiv: Map<number, Settlement[]>): void {
-  const grid = world.grid;
   const pop = settlementPop(s);
   if (pop > 0) {
     const sibling = nearestSibling(s, byCiv);
@@ -755,15 +918,9 @@ function abandon(world: World, s: Settlement, byCiv: Map<number, Settlement[]>):
       refreshCohorts(sibling);
     }
   }
-  for (let c = 0; c < grid.settlement.length; c++) {
-    if (grid.settlement[c] === s.id) {
-      grid.settlement[c] = -1;
-      grid.owner[c] = -1;
-    }
-  }
-  // Its own cell may not be in its catchment if it was just founded; free it too.
-  if (grid.owner[s.cell] === s.civ) grid.owner[s.cell] = -1;
-  if (grid.settlement[s.cell] === s.id) grid.settlement[s.cell] = -1;
+  // Its own cell may not be in its catchment if it was just founded;
+  // `freeLand` clears both the catchment and the site itself.
+  freeLand(world, s);
 
   pushEvent(world, s.civ, s.cell, 0.4, `A settlement was abandoned.`);
 }

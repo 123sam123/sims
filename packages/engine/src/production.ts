@@ -138,6 +138,8 @@ export interface ProductionResult {
   stone: number;
   mined: Partial<Record<ResourceKind, number>>;
   discovered: string[];
+  /** Deposits this civ worked to nothing this year — the ore is gone for good. */
+  exhausted: string[];
   famine: boolean;
 }
 
@@ -235,7 +237,8 @@ function produceCiv(world: World, civ: Civ, cells: number[]): ProductionResult {
 
   const mined: Partial<Record<ResourceKind, number>> = {};
   const discovered: string[] = [];
-  mineDeposits(world, civ, held, surplus * MINE_LABOUR_SHARE, mined, discovered);
+  const exhausted: string[] = [];
+  mineDeposits(world, civ, held, surplus * MINE_LABOUR_SHARE, mined, discovered, exhausted);
 
   // --- Report what happened ---
   const famine = population > 0 && food < consumed * FAMINE_THRESHOLD;
@@ -280,6 +283,7 @@ function produceCiv(world: World, civ: Civ, cells: number[]): ProductionResult {
     stone,
     mined,
     discovered,
+    exhausted,
     famine,
   };
 }
@@ -306,7 +310,10 @@ function produceFood(
   const workersPerCell = farming ? FARM_WORKERS_PER_CELL : FORAGE_WORKERS_PER_CELL;
 
   const effFert = (c: number): number => {
-    let f = grid.fertility[c];
+    // Worn soil yields less: `soil` starts at 1 and only the environment step
+    // moves it (see environment.ts). The grazing floor is deliberately NOT
+    // soil-scaled — herds still find something on land the plough wore out.
+    let f = grid.fertility[c] * grid.soil[c];
     if (farming && held.has("irrigation") && grid.river[c] > 0) {
       f = Math.min(1, f + IRRIGATION_FERT_BONUS);
     }
@@ -418,6 +425,7 @@ function mineDeposits(
   mineWorkers: number,
   minedOut: Partial<Record<ResourceKind, number>>,
   discoveredOut: string[],
+  exhaustedOut: string[],
 ): void {
   const grid = world.grid;
   const level = prospectingLevel(held);
@@ -454,6 +462,18 @@ function mineDeposits(
     d.remaining -= got;
     civ.stores[store] += got;
     minedOut[d.kind] = (minedOut[d.kind] ?? 0) + got;
+    // The moment a finite deposit runs out is history worth recording: from
+    // here this civ's supply of the ore can only come from somewhere else.
+    if (d.remaining <= 0) {
+      exhaustedOut.push(d.name);
+      emit(world, {
+        kind: "depletion",
+        civ: civ.id,
+        cell: d.cell,
+        magnitude: d.richness,
+        fields: { civ: civ.name, subject: d.name },
+      });
+    }
   }
 }
 

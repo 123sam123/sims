@@ -11,7 +11,9 @@ templates here are the durable fallback that must stand on their own.
 
 `WorldEvent` = `{ id, year, kind, civ, cell, weight, text, causedBy }`.
 
-- **`kind`** — one of 17 `EventKind`s, from `founding` to `collapse`.
+- **`kind`** — one of 21 `EventKind`s, from `founding` to `collapse`. Four of
+  them (`unrest`, `secession`, `depletion`, `degradation`) belong to the
+  anti-snowball brakes (see [[brakes]]), so the log can say *why* a civ stalled.
 - **`weight`** (0..1) — magnitude. Drives what the front page leads with, and later
   which events are worth an LLM narration call.
 - **`text`** — the durable, templated headline.

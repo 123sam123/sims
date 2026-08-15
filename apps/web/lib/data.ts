@@ -3,10 +3,12 @@
  *
  * Everything the spectator pages show is derived here from two sources, both
  * read-only:
- *   - the current `World` (the runner's most-advanced snapshot, or a freshly
- *     generated year-0 Earth when no store exists), and
- *   - the append-only event log (queried straight out of the `node:sqlite`
- *     store, or read off the in-memory world when there is no store yet).
+ *   - the current `World` (the shared Postgres replica when `DATABASE_URL` is
+ *     set, else the runner's most-advanced local snapshot, else a freshly
+ *     generated year-0 Earth), and
+ *   - the append-only event log (queried out of the same replica or
+ *     `node:sqlite` store, or read off the in-memory world when there is no
+ *     store yet).
  *
  * The app NEVER writes world state. This module uses Node APIs (`node:fs`, and
  * the runner's `Store`) and must only ever run on the server — it is imported by
@@ -38,6 +40,13 @@ import {
   formatPercent,
   kindLabel,
 } from "./format";
+import {
+  lastKnownRemoteWorld,
+  loadRemoteWorld,
+  remoteEnabled,
+  remoteEvents,
+  remoteSourceKey,
+} from "./remote";
 
 const SEED = Number(process.env.WORLD_SEED ?? 1);
 const DB_PATH =
@@ -50,15 +59,23 @@ export const CHRONICLE_WEIGHT = 0.6;
  * Event access — one interface, two backings (sqlite store / in-memory)
  * ------------------------------------------------------------------ */
 
+/** Sync (sqlite store, in-memory) and async (Postgres replica) backings both
+ *  satisfy this — call sites `await` every read, which is a no-op on the sync
+ *  ones. */
+type MaybePromise<T> = T | Promise<T>;
+
 interface EventSource {
-  feedPage(limit: number, opts?: { beforeId?: number; afterId?: number }): WorldEvent[];
-  topEvents(minWeight: number, limit: number): WorldEvent[];
-  eventsByCiv(civId: number, limit: number): WorldEvent[];
-  eventsByCell(cell: number, limit: number): WorldEvent[];
-  eventById(id: number): WorldEvent | null;
-  eventsByIds(ids: readonly number[]): WorldEvent[];
-  chronicle(minWeight: number, limit: number): WorldEvent[];
-  settlementCensus(settlementId: number): { year: number; pop: number }[];
+  feedPage(
+    limit: number,
+    opts?: { beforeId?: number; afterId?: number },
+  ): MaybePromise<WorldEvent[]>;
+  topEvents(minWeight: number, limit: number): MaybePromise<WorldEvent[]>;
+  eventsByCiv(civId: number, limit: number): MaybePromise<WorldEvent[]>;
+  eventsByCell(cell: number, limit: number): MaybePromise<WorldEvent[]>;
+  eventById(id: number): MaybePromise<WorldEvent | null>;
+  eventsByIds(ids: readonly number[]): MaybePromise<WorldEvent[]>;
+  chronicle(minWeight: number, limit: number): MaybePromise<WorldEvent[]>;
+  settlementCensus(settlementId: number): MaybePromise<{ year: number; pop: number }[]>;
 }
 
 /** Fallback backing when there is no store: query the world's own event array. */
@@ -131,8 +148,30 @@ interface Source {
  * Open the current world and an event source. The world (a heavy typed-array
  * snapshot) is memoised against the store file's size+mtime so repeated page
  * loads between ticks cost only a cheap store open, not a re-deserialize.
+ *
+ * Source order: the shared Postgres replica when `DATABASE_URL` is set (the
+ * deployed site), else the local sqlite store (dev next to a runner), else a
+ * generated year-0 Earth. A reachable-but-empty replica also falls through, so
+ * a freshly provisioned database renders a recognisable world rather than
+ * nothing.
  */
 async function openSource(): Promise<Source> {
+  if (remoteEnabled()) {
+    try {
+      const key = await remoteSourceKey();
+      if (key !== null) {
+        const world = await loadRemoteWorld(key);
+        if (world) return { world, events: remoteEvents, close: () => {} };
+      }
+    } catch {
+      // Store unreachable: serve the last world this instance saw (feed
+      // queries would fail anyway, so surface it with an empty event log)
+      // rather than erroring the page.
+      const last = lastKnownRemoteWorld();
+      if (last) return { world: last, events: new MemoryEvents([]), close: () => {} };
+    }
+  }
+
   const key = sourceKey();
   const cachedWorld = worldCache?.key === key ? worldCache.world : null;
 
@@ -238,11 +277,10 @@ export async function getFeedBundle(): Promise<FeedBundle> {
   try {
     const civs = civById(world);
     const places = settlementByCell(world);
-    const headlines = events
-      .topEvents(CHRONICLE_WEIGHT, 8)
+    const headlines = (await events.topEvents(CHRONICLE_WEIGHT, 8))
       .map((e) => toFeedItem(e, civs, places))
       .sort((a, b) => b.weight - a.weight || b.id - a.id);
-    const stream = events.feedPage(40).map((e) => toFeedItem(e, civs, places));
+    const stream = (await events.feedPage(40)).map((e) => toFeedItem(e, civs, places));
     return {
       year: world.year,
       hasHistory: stream.length > 0,
@@ -265,7 +303,7 @@ export async function getFeedPage(opts: {
   try {
     const civs = civById(world);
     const places = settlementByCell(world);
-    const rows = events.feedPage(opts.limit ?? 40, {
+    const rows = await events.feedPage(opts.limit ?? 40, {
       beforeId: opts.before,
       afterId: opts.after,
     });
@@ -406,8 +444,7 @@ export async function getCivPage(key: string): Promise<CivPage | null> {
 
     const civs = civById(world);
     const places = settlementByCell(world);
-    const notable = events
-      .eventsByCiv(civ.id, 400)
+    const notable = (await events.eventsByCiv(civ.id, 400))
       .filter((e) => e.weight >= 0.4)
       .slice(0, 40)
       .map((e) => toFeedItem(e, civs, places));
@@ -507,7 +544,7 @@ export async function getSettlementPage(id: number): Promise<SettlementPage | nu
     if (!s) return null;
     const civ = world.civs.find((c) => c.id === s.civ) ?? null;
 
-    const census = events.settlementCensus(id);
+    const census = await events.settlementCensus(id);
     const pop = Math.round(settlementPop(s));
     // Keep the chart current: append the live year if the last snapshot is older.
     if (census.length === 0 || census[census.length - 1].year < world.year) {
@@ -530,7 +567,7 @@ export async function getSettlementPage(id: number): Promise<SettlementPage | nu
       river: world.grid.river[s.cell] > 0,
       civ: civ ? { key: civ.key, name: civ.name, color: civ.color } : null,
       census: census.map((c) => ({ year: c.year, pop: Math.round(c.pop) })),
-      events: events.eventsByCell(s.cell, 100).map((e) => toFeedItem(e, civs, places)),
+      events: (await events.eventsByCell(s.cell, 100)).map((e) => toFeedItem(e, civs, places)),
     };
   } finally {
     close();
@@ -549,12 +586,12 @@ export interface EventPage {
 }
 
 /** Walk `causedBy` transitively out of the store, nearest cause first. */
-function traceAncestry(events: EventSource, start: WorldEvent): WorldEvent[] {
+async function traceAncestry(events: EventSource, start: WorldEvent): Promise<WorldEvent[]> {
   const out: WorldEvent[] = [];
   const seen = new Set<number>([start.id]);
   let frontier = [...start.causedBy];
   while (frontier.length > 0) {
-    const parents = events.eventsByIds(frontier.filter((id) => !seen.has(id)));
+    const parents = await events.eventsByIds(frontier.filter((id) => !seen.has(id)));
     const next: number[] = [];
     for (const p of parents) {
       if (seen.has(p.id)) continue;
@@ -571,19 +608,19 @@ function traceAncestry(events: EventSource, start: WorldEvent): WorldEvent[] {
 export async function getEventPage(id: number): Promise<EventPage | null> {
   const { world, events, close } = await openSource();
   try {
-    const e = events.eventById(id);
+    const e = await events.eventById(id);
     if (!e) return null;
     const civs = civById(world);
     const places = settlementByCell(world);
 
     // Immediate causes in the order they were recorded.
-    const parentById = new Map(events.eventsByIds(e.causedBy).map((p) => [p.id, p]));
+    const parentById = new Map((await events.eventsByIds(e.causedBy)).map((p) => [p.id, p]));
     const causes = e.causedBy
       .map((pid) => parentById.get(pid))
       .filter((p): p is WorldEvent => p !== undefined)
       .map((p) => toFeedItem(p, civs, places));
 
-    const ancestry = traceAncestry(events, e).map((p) => toFeedItem(p, civs, places));
+    const ancestry = (await traceAncestry(events, e)).map((p) => toFeedItem(p, civs, places));
 
     return {
       item: toFeedItem(e, civs, places),
@@ -612,7 +649,7 @@ export async function getChroniclePage(): Promise<ChroniclePage> {
   try {
     const civs = civById(world);
     const places = settlementByCell(world);
-    const rows = events.chronicle(CHRONICLE_WEIGHT, 600);
+    const rows = await events.chronicle(CHRONICLE_WEIGHT, 600);
     const entries = rows.map((e) => toFeedItem(e, civs, places));
     return {
       year: world.year,

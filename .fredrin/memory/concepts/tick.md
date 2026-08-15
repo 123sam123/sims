@@ -12,9 +12,9 @@ No LLM is involved anywhere on this path.
 **fixed, dependency-ordered sequence**, and a later stage reads what an earlier
 stage wrote *this* year:
 
-1. **environment** — relief and climate are fixed after worldgen; the one living
-   environmental process, forest regrowth, runs inside production. So this is an
-   explicit no-op seam where future climate/season lands.
+1. **environment** — `stepEnvironment(world)` (see [[brakes]]): soil wears out
+   under long cultivation and heals when left fallow. Relief and climate stay
+   fixed after worldgen; forest regrowth still runs inside production.
 2. **production** — `runProduction(world)`: land + labour → goods, into stores,
    deposits and forest cover.
 3. **population + settlement/migration** — `stepSettlements(world)`. This is a
@@ -22,21 +22,25 @@ stage wrote *this* year:
    population step (`stepPopulation` per settlement), because migration is the
    release valve for population pressure and can't be separated from it. Do not
    call `stepPopulation` from the tick — settlement does it against each site's
-   local carrying capacity.
-4. **research** — `advanceResearch(world)`: spend scholarship toward each civ's
+   local carrying capacity. It also runs the overextension brake (unrest,
+   secession — see [[brakes]]).
+4. **disease** — `stepDisease(world)` (see [[brakes]]): epidemic waves seeded by
+   density and contact. Deliberately after the population step and before
+   research, so a wave's dead are gone before research counts capability
+   holders — a great plague can cost a civilisation its knowledge that year.
+5. **research** — `advanceResearch(world)`: spend scholarship toward each civ's
    target; lose unwritten knowledge whose carriers have died.
-5. **diplomacy** — `stepDiplomacy(world)` (see [[diplomacy]]): contact, opinions
+6. **diplomacy** — `stepDiplomacy(world)` (see [[diplomacy]]): contact, opinions
    with decaying grievance memory, trade, treaties, technology diffusion and
    espionage resolution. After research so this year's discoveries can already
    leak; before extinction so a civ's last dealings are recorded.
-6. **event emission** — derived, world-level events the subsystems don't own.
+7. **event emission** — derived, world-level events the subsystems don't own.
    Today that is only extinction: a living civ whose population just hit zero is
    marked `alive = false` with an `extinctYear` and a `collapse` event.
-7. **agent directive intake** — the seam where the NEXT tick's agent directives
-   are read. **No agents/LLM this ticket.** The stage is fixed in the order now
-   so that, once agents exist, a directive can never take effect in the same
-   tick it was issued — an agent must never observe the result of its own action
-   within a tick (that is how oracle behaviour creeps in).
+8. **agent directive execution** — draw down standing projects accepted in an
+   EARLIER year. The stage is fixed last so a directive can never take effect in
+   the same tick it was issued — an agent must never observe the result of its
+   own action within a tick (that is how oracle behaviour creeps in).
 
 All stages run while `world.year` still holds the year being simulated; the
 clock is advanced to `year + 1` only at the very end. So after N ticks from a
@@ -55,14 +59,16 @@ by serialised-blob equality, not just a fingerprint).
 
 ## Serialisation — `world.ts`
 
-A world is mostly typed arrays: 11 grid arrays of 64,800 cells each, plus an
+A world is mostly typed arrays: 12 grid arrays of 64,800 cells each, plus an
 80-slot age pyramid per settlement. `serializeWorld`/`deserializeWorld` store
 those as **base64 of their raw bytes** — compact and byte-for-byte reversible,
 which is what lets a snapshot restore to a state the tick then replays
 identically. Everything else (deposits, civs, events, counters) rides along as
-ordinary JSON. The format carries a version (`WORLD_FORMAT_VERSION`) so a shape
-change is a migration, not a silent misread. Base64 decode copies into a fresh
-zero-offset buffer so Float32/Float64 alignment is guaranteed.
+ordinary JSON. The format carries a version (`WORLD_FORMAT_VERSION`, now **2**)
+so a shape change is a migration, not a silent misread — and v1 snapshots ARE
+migrated on read (v2 added `grid.soil`; a v1 world's land is pristine, so soil
+fills with 1). Base64 decode copies into a fresh zero-offset buffer so
+Float32/Float64 alignment is guaranteed.
 
 ## Persistence and resume — `store.ts` + `run.ts`
 
