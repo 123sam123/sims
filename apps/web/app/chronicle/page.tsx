@@ -2,10 +2,11 @@
  * The chronicle: the durable spine of what mattered, oldest first, grouped by
  * century. This is the world's memory read end to end — collapses, wars, first
  * meetings and paradigm discoveries, with the year-to-year hum filtered out.
+ * Rendered as an overlay panel; the living map stays underneath.
  */
 
 import EventRow from "@/components/EventRow";
-import SiteHeader from "@/components/SiteHeader";
+import OverlayPanel from "@/components/OverlayPanel";
 import { getChroniclePage } from "@/lib/data";
 import type { FeedItem } from "@/lib/format";
 import { formatYear } from "@/lib/format";
@@ -33,9 +34,7 @@ export default async function ChroniclePage() {
   const groups = byCentury(chron.entries);
 
   return (
-    <main className="wrap">
-      <SiteHeader year={chron.year} active="chronicle" />
-
+    <OverlayPanel kind="Chronicle">
       <header className="page-head">
         <h1 className="page-title">The Chronicle</h1>
         <p className="page-sub">
@@ -64,6 +63,6 @@ export default async function ChroniclePage() {
           </section>
         ))
       )}
-    </main>
+    </OverlayPanel>
   );
 }

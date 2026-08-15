@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * The live stream. Seeded server-side with the most recent events, it then
- * polls `/api/feed` for anything newer and prepends it with a brief flash, and
- * lets a spectator pull older events in on demand. Read-only: it observes the
- * world, it never touches it.
+ * The live stream. Seeded with the most recent events — server-side when given
+ * an `initial` page, otherwise it fetches its own first page on mount (the map
+ * drawer mounts it client-side with nothing) — it then polls `/api/feed` for
+ * anything newer and prepends it with a brief flash, and lets a spectator pull
+ * older events in on demand. Read-only: it observes the world, it never
+ * touches it.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -16,9 +18,10 @@ const PAGE = 40;
 
 export default function Feed({ initial }: { initial: FeedItem[] }) {
   const [items, setItems] = useState<FeedItem[]>(initial);
+  const [seeded, setSeeded] = useState(initial.length > 0);
   const [fresh, setFresh] = useState(0);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const [exhausted, setExhausted] = useState(initial.length < PAGE);
+  const [exhausted, setExhausted] = useState(initial.length > 0 && initial.length < PAGE);
 
   const newestRef = useRef<number>(initial[0]?.id ?? -1);
   const oldestRef = useRef<number>(initial[initial.length - 1]?.id ?? -1);
@@ -29,6 +32,29 @@ export default function Feed({ initial }: { initial: FeedItem[] }) {
       oldestRef.current = next[next.length - 1].id;
     }
   }, []);
+
+  /* ---- self-seed when mounted without a server-rendered page ---- */
+  useEffect(() => {
+    if (seeded) return;
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/feed?limit=${PAGE}`, { cache: "no-store" });
+        if (!res.ok || !alive) return;
+        const { items: first } = (await res.json()) as { items: FeedItem[] };
+        if (!alive) return;
+        setItems(first);
+        sync(first);
+        setExhausted(first.length < PAGE);
+        setSeeded(true);
+      } catch {
+        // transient; the poll below will seed us instead
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [seeded, sync]);
 
   /* ---- poll for newer events ---- */
   useEffect(() => {
@@ -101,7 +127,9 @@ export default function Feed({ initial }: { initial: FeedItem[] }) {
       </div>
       {items.length === 0 ? (
         <p className="empty">
-          The world has not begun. Once the simulation runs, its history appears here.
+          {seeded
+            ? "The world has not begun. Once the simulation runs, its history appears here."
+            : "Loading the record…"}
         </p>
       ) : exhausted ? (
         <p className="feed-end">You have reached the first recorded events.</p>

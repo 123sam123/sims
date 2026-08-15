@@ -18,6 +18,10 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/api/world": ["../../node_modules/.pnpm/world-atlas@*/**"],
   },
+  // The map moved from /map to the site root; keep old links working.
+  async redirects() {
+    return [{ source: "/map", destination: "/", permanent: false }];
+  },
 };
 
 export default nextConfig;

@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import MapStage from "@/components/MapStage";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "AI Civilization Earth",
   description:
-    "A spectator's window on five AI-run civilisations growing on the real Earth: a live feed of what is happening now, and pages you can fall into — a civilisation, a settlement, the chronicle, a single event and why it happened.",
+    "A spectator's window on five AI-run civilisations growing on the real Earth: the whole site is the planet — drag to pan, zoom to a settlement, and every feed, civilisation and event opens as an overlay on the map.",
 };
 
 export const viewport: Viewport = {
@@ -17,10 +18,17 @@ export const viewport: Viewport = {
   ],
 };
 
+/**
+ * The map is the site. It mounts here, in the layout, so it persists across
+ * every navigation; each route's content renders as an overlay above it.
+ */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <MapStage />
+        {children}
+      </body>
     </html>
   );
 }
