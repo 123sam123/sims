@@ -12,7 +12,9 @@ year and is deterministic from the world seed.
    capability), in civ-id order. A frontier cell (unowned land next to something
    the civ holds) is claimed when `reach × distance-decay > CLAIM_THRESHOLD`,
    where `reach` falls off with distance from the civ's **largest settlement**
-   (finite administrative reach — the anti-snowball brake) and `distance-decay`
+   over `adminReach(held)` — the base `ADMIN_REACH_KM` stretched by governance
+   capabilities (`writing`/`roads`/`law_code`/`currency`, see
+   `ADMIN_REACH_BONUS`) — and `distance-decay`
    falls off with distance from the nearest settlement. Ocean and land already
    held by another civ are never taken. A civ controls its whole reachable
    region — good land *and* the marginal land between its settlements — not only
@@ -37,7 +39,16 @@ year and is deterministic from the world seed.
    and full enough (`pop/capacity ≥ FOUND_SATURATION`) tries, with
    `FOUND_ATTEMPT_CHANCE`, to bud a colony: `bestSite` scores nearby cells and
    picks the best. No site worth founding → send a slice to a roomier sibling.
-6. **Abandonment** — a settlement whose `foodRatio` stays below
+6. **Overextension (unrest & secession)** — `stepUnrest`: each settlement's
+   strain = distance-from-capital / `adminReach`. Past `UNREST_STRAIN_FLOOR`
+   (0.55) unrest accrues (faster when hungry, damped by government legitimacy);
+   crossing `UNREST_EVENT_THRESHOLD` logs a standing `unrest` event; at boiling
+   point a non-capital settlement may secede (`SECESSION_CHANCE`/yr, stream
+   `hashSeed("unrest", civId, year)`), emitting a `secession` event causally
+   linked to the unrest report. A seceding settlement takes its **people and
+   land out of the civilisation** — no dispersal to siblings, land freed. This
+   is the overextension brake; see [[brakes]].
+7. **Abandonment** — a settlement whose `foodRatio` stays below
    `ABANDON_FOOD_RATIO` for `ABANDON_YEARS` (20) running, **or** that empties
    out, is removed; survivors disperse to the nearest sibling and its land is
    freed (`owner`/`settlement` → -1). A fed year resets the counter, so the 20
@@ -47,8 +58,9 @@ year and is deterministic from the world seed.
 
 `production.ts` keeps a **civ-wide grain store** (for trade/building/armies).
 This module computes a **per-settlement local carrying capacity** from the
-settlement's catchment (`cellFoodCapacity` = `fertility × FARM_/FORAGE_CAPACITY_
-PER_CELL`). They answer different questions and do not double-count: population
+settlement's catchment (`cellFoodCapacity` = `fertility × soil ×
+FARM_/FORAGE_CAPACITY_PER_CELL` — `soil` is the environment brake's wear state,
+see [[brakes]]). They answer different questions and do not double-count: population
 consumes nothing (see `population.md`), production depletes the store, and the
 carrying-capacity ratio only shapes per-settlement growth/shrink/abandon. Because
 of this, settlement founding is **independent of `runProduction`** — a headless

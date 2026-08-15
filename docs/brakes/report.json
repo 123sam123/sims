@@ -1,0 +1,1520 @@
+{
+  "years": 3000,
+  "results": [
+    {
+      "seed": 1,
+      "years": 3000,
+      "ownedCells": {
+        "0": 1409,
+        "1": 1410,
+        "2": 1247,
+        "3": 95,
+        "4": 899
+      },
+      "share": {
+        "0": 0.278,
+        "1": 0.279,
+        "2": 0.246,
+        "3": 0.019,
+        "4": 0.178
+      },
+      "largestShare": 0.279,
+      "largestCiv": 1,
+      "shareTimeline": [
+        {
+          "year": 250,
+          "share": 0.22
+        },
+        {
+          "year": 500,
+          "share": 0.575
+        },
+        {
+          "year": 750,
+          "share": 0.472
+        },
+        {
+          "year": 1000,
+          "share": 0.403
+        },
+        {
+          "year": 1250,
+          "share": 0.333
+        },
+        {
+          "year": 1500,
+          "share": 0.335
+        },
+        {
+          "year": 1750,
+          "share": 0.31
+        },
+        {
+          "year": 2000,
+          "share": 0.292
+        },
+        {
+          "year": 2250,
+          "share": 0.329
+        },
+        {
+          "year": 2500,
+          "share": 0.302
+        },
+        {
+          "year": 2750,
+          "share": 0.281
+        },
+        {
+          "year": 3000,
+          "share": 0.279
+        }
+      ],
+      "events": {
+        "plague": 427,
+        "degradation": 1504,
+        "depletion": 26,
+        "unrest": 1641,
+        "secession": 1450
+      },
+      "brakesOnLargest": {
+        "plague": 109,
+        "degradation": 59,
+        "depletion": 6,
+        "unrest": 44,
+        "secession": 7
+      },
+      "samples": [
+        {
+          "year": 194,
+          "kind": "plague",
+          "civ": 0,
+          "weight": 0.938119102027267,
+          "text": "A plague swept through Band of aquitaine."
+        },
+        {
+          "year": 336,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.9158333513513207,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 524,
+          "kind": "plague",
+          "civ": 0,
+          "weight": 0.9067451971489933,
+          "text": "A plague swept through Band of aquitaine."
+        },
+        {
+          "year": 613,
+          "kind": "plague",
+          "civ": 0,
+          "weight": 0.8640580348018556,
+          "text": "A plague swept through Band of aquitaine."
+        },
+        {
+          "year": 1039,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.8533503567005238,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 376,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.8441986485384405,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 282,
+          "kind": "plague",
+          "civ": 0,
+          "weight": 0.7820030295103788,
+          "text": "A plague swept through Band of aquitaine."
+        },
+        {
+          "year": 531,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.7591554259714577,
+          "text": "A plague swept through Band of deccan."
+        }
+      ],
+      "populations": {
+        "0": 49106,
+        "1": 49914,
+        "2": 40660,
+        "3": 1951,
+        "4": 33400
+      },
+      "extinct": [],
+      "seconds": 25.7
+    },
+    {
+      "seed": 2,
+      "years": 3000,
+      "ownedCells": {
+        "0": 733,
+        "1": 1247,
+        "2": 871,
+        "3": 95,
+        "4": 470
+      },
+      "share": {
+        "0": 0.215,
+        "1": 0.365,
+        "2": 0.255,
+        "3": 0.028,
+        "4": 0.138
+      },
+      "largestShare": 0.365,
+      "largestCiv": 1,
+      "shareTimeline": [
+        {
+          "year": 250,
+          "share": 0.22
+        },
+        {
+          "year": 500,
+          "share": 0.574
+        },
+        {
+          "year": 750,
+          "share": 0.427
+        },
+        {
+          "year": 1000,
+          "share": 0.327
+        },
+        {
+          "year": 1250,
+          "share": 0.397
+        },
+        {
+          "year": 1500,
+          "share": 0.421
+        },
+        {
+          "year": 1750,
+          "share": 0.411
+        },
+        {
+          "year": 2000,
+          "share": 0.359
+        },
+        {
+          "year": 2250,
+          "share": 0.359
+        },
+        {
+          "year": 2500,
+          "share": 0.362
+        },
+        {
+          "year": 2750,
+          "share": 0.394
+        },
+        {
+          "year": 3000,
+          "share": 0.365
+        }
+      ],
+      "events": {
+        "plague": 323,
+        "degradation": 1818,
+        "depletion": 25,
+        "unrest": 2257,
+        "secession": 1947
+      },
+      "brakesOnLargest": {
+        "degradation": 516,
+        "plague": 100,
+        "depletion": 6,
+        "unrest": 645,
+        "secession": 448
+      },
+      "samples": [
+        {
+          "year": 493,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.8482575071137398,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 402,
+          "kind": "plague",
+          "civ": 0,
+          "weight": 0.8216191392298786,
+          "text": "A plague swept through Band of aquitaine."
+        },
+        {
+          "year": 23,
+          "kind": "plague",
+          "civ": 2,
+          "weight": 0.7938730351999401,
+          "text": "A plague swept through Band of zambezi."
+        },
+        {
+          "year": 274,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.7476093959063292,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 2662,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.7446922565080569,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 2039,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.7233816439234168,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 999,
+          "kind": "plague",
+          "civ": 1,
+          "weight": 0.6979218900867713,
+          "text": "A plague swept through Band of greatlakes."
+        },
+        {
+          "year": 1198,
+          "kind": "plague",
+          "civ": 0,
+          "weight": 0.6945099575754281,
+          "text": "A plague swept through Band of aquitaine."
+        }
+      ],
+      "populations": {
+        "0": 22804,
+        "1": 43687,
+        "2": 49298,
+        "3": 1902,
+        "4": 17886
+      },
+      "extinct": [],
+      "seconds": 26.2
+    },
+    {
+      "seed": 3,
+      "years": 3000,
+      "ownedCells": {
+        "0": 1509,
+        "1": 1481,
+        "2": 980,
+        "3": 95,
+        "4": 981
+      },
+      "share": {
+        "0": 0.299,
+        "1": 0.293,
+        "2": 0.194,
+        "3": 0.019,
+        "4": 0.194
+      },
+      "largestShare": 0.299,
+      "largestCiv": 0,
+      "shareTimeline": [
+        {
+          "year": 250,
+          "share": 0.22
+        },
+        {
+          "year": 500,
+          "share": 0.474
+        },
+        {
+          "year": 750,
+          "share": 0.419
+        },
+        {
+          "year": 1000,
+          "share": 0.386
+        },
+        {
+          "year": 1250,
+          "share": 0.368
+        },
+        {
+          "year": 1500,
+          "share": 0.283
+        },
+        {
+          "year": 1750,
+          "share": 0.295
+        },
+        {
+          "year": 2000,
+          "share": 0.288
+        },
+        {
+          "year": 2250,
+          "share": 0.273
+        },
+        {
+          "year": 2500,
+          "share": 0.275
+        },
+        {
+          "year": 2750,
+          "share": 0.294
+        },
+        {
+          "year": 3000,
+          "share": 0.299
+        }
+      ],
+      "events": {
+        "plague": 390,
+        "famine": 2,
+        "degradation": 1498,
+        "depletion": 26,
+        "unrest": 1724,
+        "secession": 1525
+      },
+      "brakesOnLargest": {
+        "plague": 125,
+        "degradation": 402,
+        "depletion": 14,
+        "unrest": 461,
+        "secession": 417
+      },
+      "samples": [
+        {
+          "year": 312,
+          "kind": "plague",
+          "civ": 1,
+          "weight": 0.9001956586446613,
+          "text": "A plague swept through Band of greatlakes."
+        },
+        {
+          "year": 101,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.8817956356517969,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 509,
+          "kind": "plague",
+          "civ": 2,
+          "weight": 0.87578170061058,
+          "text": "A plague swept through Band of zambezi."
+        },
+        {
+          "year": 370,
+          "kind": "plague",
+          "civ": 1,
+          "weight": 0.8651410671323538,
+          "text": "A plague swept through Band of greatlakes."
+        },
+        {
+          "year": 270,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.8087731691263615,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 333,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.716716924160719,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 1453,
+          "kind": "plague",
+          "civ": 2,
+          "weight": 0.7058695757066757,
+          "text": "A plague swept through Band of zambezi."
+        },
+        {
+          "year": 1629,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.7050821500681833,
+          "text": "A plague swept through Band of deccan."
+        }
+      ],
+      "populations": {
+        "0": 51635,
+        "1": 51102,
+        "2": 26194,
+        "3": 1933,
+        "4": 32738
+      },
+      "extinct": [],
+      "seconds": 27.4
+    },
+    {
+      "seed": 4,
+      "years": 3000,
+      "ownedCells": {
+        "0": 1252,
+        "1": 1458,
+        "2": 810,
+        "3": 95,
+        "4": 886
+      },
+      "share": {
+        "0": 0.278,
+        "1": 0.324,
+        "2": 0.18,
+        "3": 0.021,
+        "4": 0.197
+      },
+      "largestShare": 0.324,
+      "largestCiv": 1,
+      "shareTimeline": [
+        {
+          "year": 250,
+          "share": 0.22
+        },
+        {
+          "year": 500,
+          "share": 0.574
+        },
+        {
+          "year": 750,
+          "share": 0.428
+        },
+        {
+          "year": 1000,
+          "share": 0.376
+        },
+        {
+          "year": 1250,
+          "share": 0.322
+        },
+        {
+          "year": 1500,
+          "share": 0.325
+        },
+        {
+          "year": 1750,
+          "share": 0.309
+        },
+        {
+          "year": 2000,
+          "share": 0.314
+        },
+        {
+          "year": 2250,
+          "share": 0.322
+        },
+        {
+          "year": 2500,
+          "share": 0.305
+        },
+        {
+          "year": 2750,
+          "share": 0.355
+        },
+        {
+          "year": 3000,
+          "share": 0.324
+        }
+      ],
+      "events": {
+        "plague": 412,
+        "famine": 1,
+        "degradation": 1692,
+        "depletion": 26,
+        "unrest": 1930,
+        "secession": 1754
+      },
+      "brakesOnLargest": {
+        "plague": 125,
+        "degradation": 54,
+        "depletion": 6,
+        "unrest": 19,
+        "secession": 2
+      },
+      "samples": [
+        {
+          "year": 198,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.9191743903607129,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 416,
+          "kind": "plague",
+          "civ": 1,
+          "weight": 0.8488403824809938,
+          "text": "A plague swept through Band of greatlakes."
+        },
+        {
+          "year": 1056,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.822542671307057,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 372,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.8126259252522139,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 630,
+          "kind": "plague",
+          "civ": 0,
+          "weight": 0.7910128201894857,
+          "text": "A plague swept through Band of aquitaine."
+        },
+        {
+          "year": 44,
+          "kind": "plague",
+          "civ": 1,
+          "weight": 0.7632256046216934,
+          "text": "A plague swept through Band of greatlakes."
+        },
+        {
+          "year": 2831,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.7585095644058597,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 1967,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.7407333418307829,
+          "text": "A plague swept through Band of deccan."
+        }
+      ],
+      "populations": {
+        "0": 56695,
+        "1": 51312,
+        "2": 25329,
+        "3": 1978,
+        "4": 50661
+      },
+      "extinct": [],
+      "seconds": 24.2
+    },
+    {
+      "seed": 5,
+      "years": 3000,
+      "ownedCells": {
+        "0": 611,
+        "1": 1397,
+        "2": 801,
+        "3": 95,
+        "4": 1211
+      },
+      "share": {
+        "0": 0.148,
+        "1": 0.339,
+        "2": 0.195,
+        "3": 0.023,
+        "4": 0.294
+      },
+      "largestShare": 0.339,
+      "largestCiv": 1,
+      "shareTimeline": [
+        {
+          "year": 250,
+          "share": 0.22
+        },
+        {
+          "year": 500,
+          "share": 0.536
+        },
+        {
+          "year": 750,
+          "share": 0.458
+        },
+        {
+          "year": 1000,
+          "share": 0.432
+        },
+        {
+          "year": 1250,
+          "share": 0.336
+        },
+        {
+          "year": 1500,
+          "share": 0.32
+        },
+        {
+          "year": 1750,
+          "share": 0.324
+        },
+        {
+          "year": 2000,
+          "share": 0.312
+        },
+        {
+          "year": 2250,
+          "share": 0.316
+        },
+        {
+          "year": 2500,
+          "share": 0.316
+        },
+        {
+          "year": 2750,
+          "share": 0.32
+        },
+        {
+          "year": 3000,
+          "share": 0.339
+        }
+      ],
+      "events": {
+        "plague": 362,
+        "degradation": 1528,
+        "depletion": 25,
+        "unrest": 1815,
+        "secession": 1690
+      },
+      "brakesOnLargest": {
+        "plague": 102,
+        "degradation": 192,
+        "depletion": 5,
+        "unrest": 182,
+        "secession": 140
+      },
+      "samples": [
+        {
+          "year": 440,
+          "kind": "plague",
+          "civ": 0,
+          "weight": 0.9224615219980474,
+          "text": "A plague swept through Band of aquitaine."
+        },
+        {
+          "year": 535,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.9167730627767738,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 61,
+          "kind": "plague",
+          "civ": 0,
+          "weight": 0.884351680846885,
+          "text": "A plague swept through Band of aquitaine."
+        },
+        {
+          "year": 337,
+          "kind": "plague",
+          "civ": 1,
+          "weight": 0.8530536091420798,
+          "text": "A plague swept through Band of greatlakes."
+        },
+        {
+          "year": 225,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.8439293170347808,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 2967,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.842671224482674,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 793,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.841300835985723,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 1641,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.780148805350529,
+          "text": "A plague swept through Band of deccan."
+        }
+      ],
+      "populations": {
+        "0": 22855,
+        "1": 48152,
+        "2": 22149,
+        "3": 1689,
+        "4": 37885
+      },
+      "extinct": [],
+      "seconds": 23.1
+    },
+    {
+      "seed": 6,
+      "years": 3000,
+      "ownedCells": {
+        "0": 1399,
+        "1": 1488,
+        "2": 1206,
+        "3": 95,
+        "4": 46
+      },
+      "share": {
+        "0": 0.33,
+        "1": 0.351,
+        "2": 0.285,
+        "3": 0.022,
+        "4": 0.011
+      },
+      "largestShare": 0.351,
+      "largestCiv": 1,
+      "shareTimeline": [
+        {
+          "year": 250,
+          "share": 0.22
+        },
+        {
+          "year": 500,
+          "share": 0.565
+        },
+        {
+          "year": 750,
+          "share": 0.481
+        },
+        {
+          "year": 1000,
+          "share": 0.458
+        },
+        {
+          "year": 1250,
+          "share": 0.349
+        },
+        {
+          "year": 1500,
+          "share": 0.402
+        },
+        {
+          "year": 1750,
+          "share": 0.369
+        },
+        {
+          "year": 2000,
+          "share": 0.41
+        },
+        {
+          "year": 2250,
+          "share": 0.401
+        },
+        {
+          "year": 2500,
+          "share": 0.379
+        },
+        {
+          "year": 2750,
+          "share": 0.362
+        },
+        {
+          "year": 3000,
+          "share": 0.351
+        }
+      ],
+      "events": {
+        "plague": 368,
+        "degradation": 1672,
+        "depletion": 25,
+        "unrest": 1923,
+        "secession": 1753
+      },
+      "brakesOnLargest": {
+        "plague": 123,
+        "degradation": 62,
+        "depletion": 6,
+        "unrest": 6,
+        "secession": 6
+      },
+      "samples": [
+        {
+          "year": 400,
+          "kind": "plague",
+          "civ": 2,
+          "weight": 0.8868083591666072,
+          "text": "A plague swept through Band of zambezi."
+        },
+        {
+          "year": 692,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.8826736098341642,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 467,
+          "kind": "plague",
+          "civ": 0,
+          "weight": 0.8805004677455873,
+          "text": "A plague swept through Band of aquitaine."
+        },
+        {
+          "year": 549,
+          "kind": "plague",
+          "civ": 2,
+          "weight": 0.869936604890972,
+          "text": "A plague swept through Band of zambezi."
+        },
+        {
+          "year": 920,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.8293689433229154,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 103,
+          "kind": "plague",
+          "civ": 1,
+          "weight": 0.815937371281907,
+          "text": "A plague swept through Band of greatlakes."
+        },
+        {
+          "year": 1224,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.8011486918114147,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 2647,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.7960465624133888,
+          "text": "A plague swept through Band of deccan."
+        }
+      ],
+      "populations": {
+        "0": 80723,
+        "1": 51466,
+        "2": 37791,
+        "3": 1936,
+        "4": 1751
+      },
+      "extinct": [],
+      "seconds": 22.1
+    },
+    {
+      "seed": 7,
+      "years": 3000,
+      "ownedCells": {
+        "0": 920,
+        "1": 1467,
+        "2": 762,
+        "3": 95,
+        "4": 623
+      },
+      "share": {
+        "0": 0.238,
+        "1": 0.379,
+        "2": 0.197,
+        "3": 0.025,
+        "4": 0.161
+      },
+      "largestShare": 0.379,
+      "largestCiv": 1,
+      "shareTimeline": [
+        {
+          "year": 250,
+          "share": 0.22
+        },
+        {
+          "year": 500,
+          "share": 0.501
+        },
+        {
+          "year": 750,
+          "share": 0.384
+        },
+        {
+          "year": 1000,
+          "share": 0.407
+        },
+        {
+          "year": 1250,
+          "share": 0.335
+        },
+        {
+          "year": 1500,
+          "share": 0.288
+        },
+        {
+          "year": 1750,
+          "share": 0.311
+        },
+        {
+          "year": 2000,
+          "share": 0.292
+        },
+        {
+          "year": 2250,
+          "share": 0.312
+        },
+        {
+          "year": 2500,
+          "share": 0.348
+        },
+        {
+          "year": 2750,
+          "share": 0.384
+        },
+        {
+          "year": 3000,
+          "share": 0.379
+        }
+      ],
+      "events": {
+        "plague": 398,
+        "famine": 1,
+        "degradation": 2038,
+        "depletion": 25,
+        "unrest": 2273,
+        "secession": 2074
+      },
+      "brakesOnLargest": {
+        "plague": 103,
+        "degradation": 360,
+        "depletion": 6,
+        "unrest": 375,
+        "secession": 283
+      },
+      "samples": [
+        {
+          "year": 388,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.9324408553168178,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 377,
+          "kind": "plague",
+          "civ": 1,
+          "weight": 0.8875367582030593,
+          "text": "A plague swept through Band of greatlakes."
+        },
+        {
+          "year": 2186,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.8120942966392423,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 927,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.7937972925420949,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 302,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.776460429066792,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 453,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.7560060094017536,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 1516,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.7022058537812323,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 2602,
+          "kind": "plague",
+          "civ": 0,
+          "weight": 0.6965926058311797,
+          "text": "A plague swept through Band of aquitaine."
+        }
+      ],
+      "populations": {
+        "0": 45646,
+        "1": 49883,
+        "2": 20183,
+        "3": 1936,
+        "4": 37603
+      },
+      "extinct": [],
+      "seconds": 25.4
+    },
+    {
+      "seed": 8,
+      "years": 3000,
+      "ownedCells": {
+        "0": 721,
+        "1": 1450,
+        "2": 809,
+        "3": 95,
+        "4": 1016
+      },
+      "share": {
+        "0": 0.176,
+        "1": 0.354,
+        "2": 0.198,
+        "3": 0.023,
+        "4": 0.248
+      },
+      "largestShare": 0.354,
+      "largestCiv": 1,
+      "shareTimeline": [
+        {
+          "year": 250,
+          "share": 0.22
+        },
+        {
+          "year": 500,
+          "share": 0.567
+        },
+        {
+          "year": 750,
+          "share": 0.472
+        },
+        {
+          "year": 1000,
+          "share": 0.356
+        },
+        {
+          "year": 1250,
+          "share": 0.313
+        },
+        {
+          "year": 1500,
+          "share": 0.315
+        },
+        {
+          "year": 1750,
+          "share": 0.363
+        },
+        {
+          "year": 2000,
+          "share": 0.326
+        },
+        {
+          "year": 2250,
+          "share": 0.291
+        },
+        {
+          "year": 2500,
+          "share": 0.332
+        },
+        {
+          "year": 2750,
+          "share": 0.332
+        },
+        {
+          "year": 3000,
+          "share": 0.354
+        }
+      ],
+      "events": {
+        "plague": 395,
+        "famine": 1,
+        "degradation": 1704,
+        "depletion": 25,
+        "unrest": 1997,
+        "secession": 1776
+      },
+      "brakesOnLargest": {
+        "plague": 133,
+        "degradation": 61,
+        "depletion": 6,
+        "unrest": 15,
+        "secession": 9
+      },
+      "samples": [
+        {
+          "year": 1039,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.8497442387063056,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 1009,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.8490566555933596,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 33,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.839644189570099,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 2120,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.8198677743738829,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 1184,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.780268471316236,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 58,
+          "kind": "plague",
+          "civ": 0,
+          "weight": 0.7534759095497429,
+          "text": "A plague swept through Band of aquitaine."
+        },
+        {
+          "year": 315,
+          "kind": "plague",
+          "civ": 1,
+          "weight": 0.7524230553396045,
+          "text": "A plague swept through Band of greatlakes."
+        },
+        {
+          "year": 2046,
+          "kind": "plague",
+          "civ": 2,
+          "weight": 0.7181482533429226,
+          "text": "A plague swept through Band of zambezi."
+        }
+      ],
+      "populations": {
+        "0": 26585,
+        "1": 50236,
+        "2": 21733,
+        "3": 1949,
+        "4": 33717
+      },
+      "extinct": [],
+      "seconds": 24.3
+    },
+    {
+      "seed": 9,
+      "years": 3000,
+      "ownedCells": {
+        "0": 741,
+        "1": 1467,
+        "2": 1018,
+        "3": 95,
+        "4": 1075
+      },
+      "share": {
+        "0": 0.169,
+        "1": 0.334,
+        "2": 0.232,
+        "3": 0.022,
+        "4": 0.245
+      },
+      "largestShare": 0.334,
+      "largestCiv": 1,
+      "shareTimeline": [
+        {
+          "year": 250,
+          "share": 0.22
+        },
+        {
+          "year": 500,
+          "share": 0.545
+        },
+        {
+          "year": 750,
+          "share": 0.389
+        },
+        {
+          "year": 1000,
+          "share": 0.376
+        },
+        {
+          "year": 1250,
+          "share": 0.325
+        },
+        {
+          "year": 1500,
+          "share": 0.297
+        },
+        {
+          "year": 1750,
+          "share": 0.31
+        },
+        {
+          "year": 2000,
+          "share": 0.287
+        },
+        {
+          "year": 2250,
+          "share": 0.321
+        },
+        {
+          "year": 2500,
+          "share": 0.301
+        },
+        {
+          "year": 2750,
+          "share": 0.3
+        },
+        {
+          "year": 3000,
+          "share": 0.334
+        }
+      ],
+      "events": {
+        "famine": 1,
+        "plague": 402,
+        "degradation": 1762,
+        "depletion": 25,
+        "unrest": 1902,
+        "secession": 1765
+      },
+      "brakesOnLargest": {
+        "degradation": 66,
+        "plague": 101,
+        "depletion": 6,
+        "unrest": 26,
+        "secession": 10
+      },
+      "samples": [
+        {
+          "year": 424,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.884897921346128,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 415,
+          "kind": "plague",
+          "civ": 1,
+          "weight": 0.8825059379916639,
+          "text": "A plague swept through Band of greatlakes."
+        },
+        {
+          "year": 1820,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.8738348805806602,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 2506,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.8656007851427419,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 263,
+          "kind": "plague",
+          "civ": 2,
+          "weight": 0.838017216902226,
+          "text": "A plague swept through Band of zambezi."
+        },
+        {
+          "year": 2402,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.8282578625418244,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 833,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.8112175867334008,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 251,
+          "kind": "plague",
+          "civ": 2,
+          "weight": 0.7801753967627884,
+          "text": "A plague swept through Band of zambezi."
+        }
+      ],
+      "populations": {
+        "0": 35150,
+        "1": 51000,
+        "2": 27611,
+        "3": 1901,
+        "4": 36941
+      },
+      "extinct": [],
+      "seconds": 25.2
+    },
+    {
+      "seed": 10,
+      "years": 3000,
+      "ownedCells": {
+        "0": 892,
+        "1": 1442,
+        "2": 1227,
+        "3": 95,
+        "4": 735
+      },
+      "share": {
+        "0": 0.203,
+        "1": 0.328,
+        "2": 0.279,
+        "3": 0.022,
+        "4": 0.167
+      },
+      "largestShare": 0.328,
+      "largestCiv": 1,
+      "shareTimeline": [
+        {
+          "year": 250,
+          "share": 0.22
+        },
+        {
+          "year": 500,
+          "share": 0.56
+        },
+        {
+          "year": 750,
+          "share": 0.404
+        },
+        {
+          "year": 1000,
+          "share": 0.34
+        },
+        {
+          "year": 1250,
+          "share": 0.311
+        },
+        {
+          "year": 1500,
+          "share": 0.327
+        },
+        {
+          "year": 1750,
+          "share": 0.349
+        },
+        {
+          "year": 2000,
+          "share": 0.33
+        },
+        {
+          "year": 2250,
+          "share": 0.32
+        },
+        {
+          "year": 2500,
+          "share": 0.319
+        },
+        {
+          "year": 2750,
+          "share": 0.317
+        },
+        {
+          "year": 3000,
+          "share": 0.328
+        }
+      ],
+      "events": {
+        "plague": 404,
+        "degradation": 1881,
+        "depletion": 25,
+        "unrest": 2115,
+        "secession": 1940
+      },
+      "brakesOnLargest": {
+        "plague": 130,
+        "degradation": 179,
+        "depletion": 5,
+        "unrest": 168,
+        "secession": 132
+      },
+      "samples": [
+        {
+          "year": 172,
+          "kind": "plague",
+          "civ": 1,
+          "weight": 0.9275467026233675,
+          "text": "A plague swept through Band of greatlakes."
+        },
+        {
+          "year": 1045,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.8691085017959912,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 441,
+          "kind": "plague",
+          "civ": 2,
+          "weight": 0.853226420180872,
+          "text": "A plague swept through Band of zambezi."
+        },
+        {
+          "year": 539,
+          "kind": "plague",
+          "civ": 4,
+          "weight": 0.8381521581672131,
+          "text": "A plague swept through Band of honshu."
+        },
+        {
+          "year": 1015,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.7758524762480521,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 629,
+          "kind": "plague",
+          "civ": 0,
+          "weight": 0.7718075843166661,
+          "text": "A plague swept through Band of aquitaine."
+        },
+        {
+          "year": 2639,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.7471008385377652,
+          "text": "A plague swept through Band of deccan."
+        },
+        {
+          "year": 2123,
+          "kind": "plague",
+          "civ": 3,
+          "weight": 0.724631615604638,
+          "text": "A plague swept through Band of deccan."
+        }
+      ],
+      "populations": {
+        "0": 34217,
+        "1": 48038,
+        "2": 38204,
+        "3": 1979,
+        "4": 34160
+      },
+      "extinct": [],
+      "seconds": 26.1
+    }
+  ]
+}
