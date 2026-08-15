@@ -26,10 +26,12 @@ import {
   type Capability,
   type Civ,
   civPopulation,
+  declareWar,
   offerTreaty,
   orderEspionage,
   type Project,
   breakTreaty,
+  sueForPeace,
   relayMessage,
   researchGates,
   type StoreKey,
@@ -91,8 +93,10 @@ export interface EnvoyDirective {
 export interface PactDirective {
   type: "pact";
   towards: number;
-  /** Offer a treaty, or tear up the one that stands. */
-  action: "offer" | "break";
+  /** Offer a treaty, tear up the one that stands, declare war, or sue for
+   *  peace in a war being fought. The engine never blocks the choice of war —
+   *  it prices it. */
+  action: "offer" | "break" | "war" | "peace";
   rationale?: string;
 }
 export interface SpyDirective {
@@ -167,7 +171,7 @@ export const DIRECTIVE_OUTPUT_SCHEMA = {
           record: { type: "string", description: "proclaim: a line for the chronicle" },
           towards: { type: "number", description: "envoy/pact/spy: the civ id it concerns" },
           message: { type: "string", description: "envoy: words carried to that people" },
-          action: { type: "string", enum: ["offer", "break"], description: "pact: offer a treaty, or break the standing one" },
+          action: { type: "string", enum: ["offer", "break", "war", "peace"], description: "pact: offer a treaty, break the standing one, declare war, or sue for peace" },
           mission: { type: "string", enum: ["steal", "assess"], description: "spy: steal a capability, or assess their strength" },
           capability: { type: "string", description: "spy steal: the capability hoped for (optional)" },
           rationale: { type: "string", description: "one short sentence of why" },
@@ -249,7 +253,8 @@ function toDirective(raw: RawDirective): Directive | null {
     case "pact": {
       const towards = num(raw.towards);
       const action = str(raw.action);
-      return towards !== undefined && (action === "offer" || action === "break")
+      return towards !== undefined &&
+        (action === "offer" || action === "break" || action === "war" || action === "peace")
         ? { type: "pact", towards, action, rationale }
         : null;
     }
@@ -451,6 +456,32 @@ function adjudicatePact(world: World, civ: Civ, d: PactDirective): Adjudication 
       summary: `break the pact with ${other.name}`,
       apply: (w, c) => {
         breakTreaty(w, c.id, d.towards);
+      },
+    };
+  }
+  if (d.action === "war") {
+    if (rel?.atWar) {
+      return { ok: true, summary: `you are already at war with ${other.name}`, apply: () => {} };
+    }
+    // The engine does not moralise war — it prices it. The only gates are the
+    // ones every dealing has: a known counterpart and the standing to command.
+    return {
+      ok: true,
+      summary: `declare war on ${other.name}`,
+      apply: (w, c) => {
+        declareWar(w, c.id, d.towards, "chose war against us");
+      },
+    };
+  }
+  if (d.action === "peace") {
+    if (!rel?.atWar) {
+      return { ok: false, gate: "authority", reason: `no war with ${other.name} to end` };
+    }
+    return {
+      ok: true,
+      summary: `sue for peace with ${other.name}`,
+      apply: (w, c) => {
+        sueForPeace(w, c.id, d.towards);
       },
     };
   }

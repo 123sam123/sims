@@ -191,6 +191,13 @@ export interface Relation {
   /** Event ids of first contact / route opening — causal anchors. */
   contactEvent?: number;
   tradeEvent?: number;
+  /** Year the current war began; null/absent = at peace. */
+  warSince?: number | null;
+  /** Event id of the war declaration — the anchor its battles point at. */
+  warEvent?: number;
+  /** A standing plea for peace made by this civ. The war ends when both sides
+   * will it — or when the counterpart is worn down enough to take the offer. */
+  peaceOffer?: number | null;
 }
 
 /**
@@ -208,6 +215,51 @@ export interface EspionageOp {
   capability?: string;
   /** Year the order was given. */
   year: number;
+}
+
+/**
+ * A named commander at the head of an army — the minimal Person-backed agency
+ * war needs to produce biography: a commander shifts how battles go and can
+ * die in one. Fuller institutional agency is a later ticket.
+ */
+export interface Commander {
+  /** Person id in `world.people`. */
+  person: number;
+  /** Ability, 0..1. Drawn once at appointment, seeded. */
+  skill: number;
+}
+
+/**
+ * An army in the field. Every one of these was raised from real working-age
+ * people (production subtracts every soldier from the labour force), carries
+ * equipment that had to be manufactured from felled and mined goods, and eats
+ * out of the granary while within supply reach — or out of the ration carts it
+ * left with, and then not at all. Plain JSON, so it rides along in the civ
+ * snapshot with no serialisation change.
+ */
+export interface Army {
+  id: number;
+  /** Soldiers marching under this banner. */
+  troops: number;
+  /** Equipment quality-points carried; quality per soldier = points / troops. */
+  equipment: number;
+  /** Fighting spirit, 0..1. A broken army goes home. */
+  morale: number;
+  /** Where it stands. */
+  cell: number;
+  /** Civ id it marches against. */
+  target: number;
+  /** Cell it marches on — an enemy settlement. */
+  objective: number;
+  /** Cell it mustered at — the way home. */
+  home: number;
+  /** Rations carried, in soldier-years: the supply train beyond friendly land. */
+  supplies: number;
+  commander: Commander | null;
+  /** Year it took the field. */
+  raised: number;
+  /** Event id of the war declaration it marches under — the causal anchor. */
+  warEvent?: number;
 }
 
 /**
@@ -293,7 +345,18 @@ export interface Civ {
     research: number;
     military: number;
   };
-  military: { troops: number; equipment: number; morale: number };
+  military: {
+    /** Total under arms — the home reserve plus every fielded army. */
+    troops: number;
+    /** The arsenal, in equipment quality-points (see `military.ts`). */
+    equipment: number;
+    /** The nation's war spirit, 0..1. Exhaustion is what ends most wars. */
+    morale: number;
+    /** Armies in the field. Optional so pre-war snapshots keep loading. */
+    armies?: Army[];
+    /** Counter for army ids, created on first fielding. */
+    nextArmyId?: number;
+  };
   relations: Record<number, Relation>;
   /** What this civ believes about the world. Never the truth, only its view. */
   known: number[]; // other civ ids it has met

@@ -946,6 +946,92 @@ function nearestSibling(
 }
 
 /* ------------------------------------------------------------------ *
+ * Conquest — the settlement layer's side of a lost war
+ * ------------------------------------------------------------------ */
+
+/** Share of a sacked settlement's people killed in the taking. */
+export const SACK_DEATH_SHARE = 0.12;
+/** Share who flee as refugees to the nearest surviving settlement of their
+ *  own people. Whoever neither dies nor flees lives on under the conqueror. */
+export const SACK_REFUGEE_SHARE = 0.3;
+/** Unrest a captured settlement carries — conquered people are not content. */
+export const CAPTURE_UNREST = 0.6;
+
+export interface SackResult {
+  /** People killed in the sack. */
+  killed: number;
+  /** People who fled to `refuge`; 0 when their civ had nowhere left to run. */
+  fled: number;
+  /** The settlement the refugees reached, or null. */
+  refuge: Settlement | null;
+  /** Cells of the old owner's land that changed hands with the place. */
+  cells: number;
+}
+
+/**
+ * Sack a settlement in a conquest: a share of its people are killed, a share
+ * flee to the nearest surviving settlement of their own civ, and whoever
+ * remains lives on under the conqueror — the settlement and every cell of its
+ * catchment change hands on the map. The engine does not moralise the choice;
+ * it prices it. The caller (`military.ts`) emits the events, so they can carry
+ * the battle's causal links; a settlement emptied outright is culled by the
+ * next settlement step like any other dead place.
+ */
+export function sackSettlement(
+  world: World,
+  s: Settlement,
+  conquerorId: number,
+): SackResult {
+  let killed = 0;
+  for (let a = 0; a < AGE_SLOTS; a++) {
+    const d = s.ages[a] * SACK_DEATH_SHARE;
+    s.ages[a] -= d;
+    killed += d;
+  }
+
+  // Refugees run to the nearest surviving settlement of their own people.
+  let refuge: Settlement | null = null;
+  let bestD = Infinity;
+  for (const t of world.settlements) {
+    if (t.civ !== s.civ || t.id === s.id || settlementPop(t) <= 0) continue;
+    const d = gridDist2(s.cell, t.cell);
+    if (d < bestD) {
+      bestD = d;
+      refuge = t;
+    }
+  }
+  let fled = 0;
+  if (refuge) {
+    for (let a = 0; a < AGE_SLOTS; a++) {
+      const move = s.ages[a] * SACK_REFUGEE_SHARE;
+      s.ages[a] -= move;
+      refuge.ages[a] += move;
+      fled += move;
+    }
+    refreshCohorts(refuge);
+  }
+  refreshCohorts(s);
+
+  // The place, its catchment and the people still in it change hands.
+  const oldCiv = s.civ;
+  s.civ = conquerorId;
+  s.unrest = Math.max(s.unrest, CAPTURE_UNREST);
+  s.leanYears = 0;
+  const grid = world.grid;
+  let cells = 0;
+  for (let c = 0; c < grid.settlement.length; c++) {
+    if (grid.settlement[c] !== s.id) continue;
+    if (grid.owner[c] === oldCiv) cells++;
+    grid.owner[c] = conquerorId;
+  }
+  if (grid.owner[s.cell] !== conquerorId) {
+    if (grid.owner[s.cell] === oldCiv) cells++;
+    grid.owner[s.cell] = conquerorId;
+  }
+  return { killed, fled, refuge, cells };
+}
+
+/* ------------------------------------------------------------------ *
  * Events
  * ------------------------------------------------------------------ */
 
