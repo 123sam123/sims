@@ -12,7 +12,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@sim/engine", "@sim/runner"],
-  serverExternalPackages: ["world-atlas", "topojson-client"],
+  // `pg` stays external too: it lazily requires optional native bindings
+  // (pg-native), which bundling would resolve at build time and break.
+  serverExternalPackages: ["world-atlas", "topojson-client", "pg"],
   outputFileTracingIncludes: {
     "/api/world": ["../../node_modules/.pnpm/world-atlas@*/**"],
   },

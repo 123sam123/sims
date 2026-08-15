@@ -381,6 +381,20 @@ export class Store {
     return rows.map(Store.toEvent);
   }
 
+  /**
+   * Events strictly after an id, ascending, capped — the remote publisher's
+   * cursor read. Re-reading from the store (rather than capturing drained
+   * arrays) is what lets a replica that missed writes catch up by id.
+   */
+  eventsAfter(afterId: number, limit: number): WorldEvent[] {
+    const rows = this.db
+      .prepare(
+        "SELECT id, year, kind, civ, cell, weight, text, causedBy FROM events WHERE id > ? ORDER BY id ASC LIMIT ?",
+      )
+      .all(afterId, limit) as unknown as EventRow[];
+    return rows.map(Store.toEvent);
+  }
+
   /** One event by id, or null. */
   eventById(id: number): WorldEvent | null {
     const row = this.db

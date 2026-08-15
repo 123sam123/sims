@@ -16,3 +16,5 @@ out/
 .fredrin/fredrin.cmd
 .fredrin/context-pack.mjs
 .fredrin/hooks/
+.vercel
+.env*
