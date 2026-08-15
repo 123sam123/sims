@@ -25,3 +25,4 @@ export * from "./world.ts";
 // worldgen re-exports GRID_W/GRID_H/cellIndex from ./types; take only its own
 // symbols here so those names resolve unambiguously through the barrel.
 export { generateWorld, landCellCount } from "./worldgen.ts";
+export * from "./calendar.ts";

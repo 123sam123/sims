@@ -15,6 +15,7 @@
  */
 
 import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { formatYear } from "@sim/engine/calendar.ts";
 import { dirname } from "node:path";
 import { civPopulation, generateWorld, type World } from "@sim/engine";
 import { decideForWorld, makeBrains } from "@sim/agents";
@@ -202,7 +203,7 @@ function cmdStatus(flags: Record<string, string | boolean>): void {
   const dbPath = asString(flags.db) ?? DEFAULT_DB;
   const { store, world } = loadWorldOrFail(dbPath);
 
-  const lines: string[] = [`Year ${world.year}`];
+  const lines: string[] = [`${formatYear(world.year)}  (tick ${world.year})`];
   for (const civ of world.civs) {
     const pop = civPopulation(world, civ.id);
     const settlements = world.settlements.filter((s) => s.civ === civ.id).length;

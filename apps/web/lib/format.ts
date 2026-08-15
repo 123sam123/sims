@@ -34,7 +34,12 @@ const nf = new Intl.NumberFormat("en-US");
 export const formatNumber = (n: number): string => nf.format(Math.round(n));
 
 /** A sim-year as a label: `Year 1,234`. Years count from the first tick. */
-export const formatYear = (year: number): string => `Year ${nf.format(year)}`;
+/**
+ * A tick rendered as the date a viewer reads. The world opens in 2000 BC; the
+ * epoch and the no-year-zero rule live in the engine so the CLI, the site and
+ * every event agree on what year it is.
+ */
+export { formatYear, formatYearSpan, historicalYear } from "@sim/engine/calendar.ts";
 
 /** A 0..1 fraction as a percent: `72%`. */
 export const formatPercent = (v: number): string => `${Math.round(v * 100)}%`;
